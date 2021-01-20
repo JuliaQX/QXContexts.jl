@@ -1,6 +1,7 @@
 using QXRun
 using Test
+using TestSetExtensions
 
 @testset "QXRun.jl" begin
-    # Write your tests here.
+    @includetests ARGS
 end
