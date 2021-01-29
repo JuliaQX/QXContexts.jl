@@ -3,23 +3,84 @@ module ParametersTests
 using QXRun
 using Test
 
-import Base.isequal
-
-for T in (:Parameters, :SubstitutionSet)
-    @eval begin
-        @generated function isequal(x::$T, y::$T)
-            checks = [:(x.$field == y.$field) for field in fieldnames($T)]
-            quote all([$(checks...)]) end
-        end
-    end
-end
 
 @testset "Parameter Tests" begin
+
+    @testset "Parameters isequal overload" begin
+        ex1 = Parameters(["0000", "0001", "1111"], Symbol.(["\$v1","\$v2"]), CartesianIndices((3,2)))
+        ex2 = Parameters(["0000", "0001", "1111"], Symbol.(["\$v2","\$v1"]), CartesianIndices((3,2)))
+        ex3 = Parameters(["0000", "0001", "1111"], Symbol.(["\$v1","\$v2"]), CartesianIndices((2,3)))
+        ex4 = Parameters(["0000", "0001", "1111"], Symbol.(["\$v2","\$v1"]), CartesianIndices((2,3)))
+        ex5 = Parameters(["0001", "0000", "1111"], Symbol.(["\$v1","\$v2"]), CartesianIndices((3,2)))
+        ex6 = Parameters(["0011", "0000", "1111"], Symbol.(["\$v1","\$v2"]), CartesianIndices((3,2)))
+
+        @test isequal(ex1, ex1)
+        @test !isequal(ex1, ex2)
+        @test !isequal(ex1, ex3)
+        @test isequal(ex1, ex4)
+        @test isequal(ex1, ex5)
+        @test !isequal(ex1, ex6)
+
+        @test isequal(ex2, ex2)
+        @test isequal(ex2, ex3)
+        @test !isequal(ex2, ex4)
+        @test !isequal(ex2, ex5)
+        @test !isequal(ex2, ex6)
+    end
+
+    @testset "SubstitutionSet isequal overload" begin
+        # Baseline dict
+        d1 = Dict(
+            Symbol("\$o1") => "output_0",
+            Symbol("\$o2") => "output_0",
+            Symbol("\$o3") => "output_0",
+            Symbol("\$o4") => "output_1"
+        )
+        # Same as baseline with changed order
+        d2 = Dict(
+            Symbol("\$o1") => "output_0",
+            Symbol("\$o3") => "output_0",
+            Symbol("\$o4") => "output_1",
+            Symbol("\$o2") => "output_0"
+        )
+        # Differs from d1 and d2
+        d3 = Dict(
+            Symbol("\$o1") => "output_0",
+            Symbol("\$o2") => "output_0",
+            Symbol("\$o3") => "output_1",
+            Symbol("\$o4") => "output_1"
+        )
+
+        ex1 = SubstitutionSet(d1, Symbol.(["\$v1","\$v2"]), CartesianIndices((3,2)))
+        ex2 = SubstitutionSet(d1, Symbol.(["\$v2","\$v1"]), CartesianIndices((3,2)))
+        ex3 = SubstitutionSet(d1, Symbol.(["\$v1","\$v2"]), CartesianIndices((2,3)))
+        ex4 = SubstitutionSet(d1, Symbol.(["\$v2","\$v1"]), CartesianIndices((2,3)))
+        @test isequal(ex1, ex1)
+        @test !isequal(ex1, ex2)
+        @test !isequal(ex1, ex3)
+        @test isequal(ex1, ex4)
+        # Change subs dict - the sets will still be equal
+        ex5 = SubstitutionSet(d2, Symbol.(["\$v2","\$v1"]), CartesianIndices((3,2)))
+        ex6 = SubstitutionSet(d2, Symbol.(["\$v1","\$v2"]), CartesianIndices((2,3)))
+        ex7 = SubstitutionSet(d2, Symbol.(["\$v2","\$v1"]), CartesianIndices((2,3)))
+        @test !isequal(ex1, ex5)
+        @test !isequal(ex1, ex6)
+        @test isequal(ex1, ex7)
+        # Change subs dict - the sets will NOT be equal
+        ex8 = SubstitutionSet(d3, Symbol.(["\$v2","\$v1"]), CartesianIndices((3,2)))
+        ex9 = SubstitutionSet(d3, Symbol.(["\$v1","\$v2"]), CartesianIndices((2,3)))
+        ex10 = SubstitutionSet(d3, Symbol.(["\$v2","\$v1"]), CartesianIndices((2,3)))
+        @test !isequal(ex1, ex8)
+        @test !isequal(ex1, ex9)
+        @test !isequal(ex1, ex10)
+    end
+
+
     parameter_file_contents = """
 partitions:
     parameters:
-      - v1: 2
-      - v2: 2
+      v1: 2
+      v2: 2
 amplitudes:
   - "0000"
   - "0001"
@@ -31,27 +92,6 @@ amplitudes:
         Symbol.(["\$v1", "\$v2"]),
         CartesianIndices((2,2))
     )
-
-    @testset "Generating multi-index partitions" begin
-        @test begin
-            input = [Dict("v1" => 2), Dict("v2" => 2)]
-            expected = (
-                ["v1", "v2"],
-                CartesianIndices((2,2))
-            )
-            QXRun.multi_index_partitions(input) == expected
-        end
-
-        @test begin
-            input = [Dict("v1" => 2), Dict("v2" => 2), Dict("v3" => 4)]
-            expected = (
-                ["v1", "v2", "v3"],
-                CartesianIndices((2,2,4))
-            )
-            QXRun.multi_index_partitions(input) == expected
-        end
-    end
-
 
     fname = tempname()
     try

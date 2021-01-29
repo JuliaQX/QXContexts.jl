@@ -3,38 +3,6 @@ import YAML
 export Parameters, SubstitutionSet
 export getindex
 
-
-"""
-    multi_index_partitions(partition_parameters::Vector{Dict{String, T}}) where T
-
-Given an array of dictionaries containing a DSL variable bond size and it's maximum value,
-construct a pair of return values containing:
-
-1. The variable names
-2. An array of tuples that contains each combination of values that the variables may take
-
-Example
-=======
-```
-julia> input = [Dict("v1" => 2), Dict("v2" => 4)];
-
-julia> (names, values) = QXRun.multi_index_partitions(input)
-
-(["v1", "v2"], [(1, 1), (2, 1), (1, 2), (2, 2), (1, 3), (2, 3), (1, 4), (2, 4)])
-```
-"""
-function multi_index_partitions(partition_parameters::Vector{Dict{String, T}}) where T
-    bond_sizes = []
-    for bond_size in partition_parameters
-        push!(bond_sizes, [k => v for (k, v) in bond_size]...)
-    end
-
-    bond_names = first.(bond_sizes)
-    dims = Tuple(last.(bond_sizes))
-
-    return (bond_names, CartesianIndices(dims))
-end
-
 """
     Parameters(filename::String)
 
@@ -45,9 +13,9 @@ Example Parameter file
 ======================
 partitions:
     parameters:
-      - v1: 2
-      - v2: 2
-      - v3: 4
+        v1: 2
+        v2: 2
+        v3: 4
 amplitudes:
   - "0000"
   - "0001"
@@ -67,7 +35,9 @@ function Parameters(filename::String)
     amplitudes = [amplitude for amplitude in data["amplitudes"]]
     #TODO: handle regex-y states; e.g. "00**" => ["0000", "0001", "0010", "0011"]
 
-    (variable_names, variable_values) = multi_index_partitions(data["partitions"]["parameters"])
+    bond_info = data["partitions"]["parameters"]
+    variable_names = keys(bond_info)
+    variable_values = CartesianIndices(Tuple(values(bond_info)))
 
     push!(variable_symbols, [Symbol("\$$v") for v in variable_names]...)
 
@@ -99,6 +69,7 @@ end
 import Base.length, Base.size
 import Base.getindex
 import Base.iterate
+import Base.isequal
 
 ###############################################################################
 # Parameter type interface
@@ -122,6 +93,18 @@ function iterate(p::Parameters, state::Int = 1)
     state > length(p) ? nothing : (p[state], state + 1)
 end
 
+function isequal(x::Parameters, y::Parameters)
+    same_amplitudes = sort(x.amplitudes) == sort(y.amplitudes)
+
+    x_idx = sortperm(x.symbols)
+    y_idx = sortperm(y.symbols)
+
+    same_symbols = x.symbols[x_idx] == y.symbols[y_idx]
+
+    same_values = x.values.indices[x_idx] == y.values.indices[y_idx]
+
+    return same_amplitudes && same_symbols && same_values
+end
 
 ###############################################################################
 # SubstitutionSet type interface
@@ -140,4 +123,17 @@ end
 
 function iterate(s::SubstitutionSet, state::Int = 1)
     state > length(s.values) ? nothing : (s[state], state + 1)
+end
+
+function isequal(x::SubstitutionSet, y::SubstitutionSet)
+    same_subs = x.subs == y.subs
+
+    x_idx = sortperm(x.symbols)
+    y_idx = sortperm(y.symbols)
+
+    same_symbols = x.symbols[x_idx] == y.symbols[y_idx]
+
+    same_values = x.values.indices[x_idx] == y.values.indices[y_idx]
+
+    return same_subs && same_symbols && same_values
 end
