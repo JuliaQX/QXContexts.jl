@@ -51,25 +51,25 @@ using Test
             Symbol("\$o4") => "output_1"
         )
 
-        ex1 = SubstitutionSet(d1, Symbol.(["\$v1","\$v2"]), CartesianIndices((3,2)))
-        ex2 = SubstitutionSet(d1, Symbol.(["\$v2","\$v1"]), CartesianIndices((3,2)))
-        ex3 = SubstitutionSet(d1, Symbol.(["\$v1","\$v2"]), CartesianIndices((2,3)))
-        ex4 = SubstitutionSet(d1, Symbol.(["\$v2","\$v1"]), CartesianIndices((2,3)))
+        ex1 = SubstitutionSet(d1, "0001", Symbol.(["\$v1","\$v2"]), CartesianIndices((3,2)))
+        ex2 = SubstitutionSet(d1, "0001", Symbol.(["\$v2","\$v1"]), CartesianIndices((3,2)))
+        ex3 = SubstitutionSet(d1, "0001", Symbol.(["\$v1","\$v2"]), CartesianIndices((2,3)))
+        ex4 = SubstitutionSet(d1, "0001", Symbol.(["\$v2","\$v1"]), CartesianIndices((2,3)))
         @test isequal(ex1, ex1)
         @test !isequal(ex1, ex2)
         @test !isequal(ex1, ex3)
         @test isequal(ex1, ex4)
         # Change subs dict - the sets will still be equal
-        ex5 = SubstitutionSet(d2, Symbol.(["\$v2","\$v1"]), CartesianIndices((3,2)))
-        ex6 = SubstitutionSet(d2, Symbol.(["\$v1","\$v2"]), CartesianIndices((2,3)))
-        ex7 = SubstitutionSet(d2, Symbol.(["\$v2","\$v1"]), CartesianIndices((2,3)))
+        ex5 = SubstitutionSet(d2, "0001", Symbol.(["\$v2","\$v1"]), CartesianIndices((3,2)))
+        ex6 = SubstitutionSet(d2, "0001", Symbol.(["\$v1","\$v2"]), CartesianIndices((2,3)))
+        ex7 = SubstitutionSet(d2, "0001", Symbol.(["\$v2","\$v1"]), CartesianIndices((2,3)))
         @test !isequal(ex1, ex5)
         @test !isequal(ex1, ex6)
         @test isequal(ex1, ex7)
         # Change subs dict - the sets will NOT be equal
-        ex8 = SubstitutionSet(d3, Symbol.(["\$v2","\$v1"]), CartesianIndices((3,2)))
-        ex9 = SubstitutionSet(d3, Symbol.(["\$v1","\$v2"]), CartesianIndices((2,3)))
-        ex10 = SubstitutionSet(d3, Symbol.(["\$v2","\$v1"]), CartesianIndices((2,3)))
+        ex8 = SubstitutionSet(d3, "0011", Symbol.(["\$v2","\$v1"]), CartesianIndices((3,2)))
+        ex9 = SubstitutionSet(d3, "0011", Symbol.(["\$v1","\$v2"]), CartesianIndices((2,3)))
+        ex10 = SubstitutionSet(d3, "0011", Symbol.(["\$v2","\$v1"]), CartesianIndices((2,3)))
         @test !isequal(ex1, ex8)
         @test !isequal(ex1, ex9)
         @test !isequal(ex1, ex10)
@@ -111,6 +111,7 @@ amplitudes:
 
 
         @testset "Generating a SubstitutionSet" begin
+            target_amplitude = "0001"
             expected_substitution_set = SubstitutionSet(
                 Dict(
                     Symbol("\$o1") => "output_0",
@@ -118,12 +119,13 @@ amplitudes:
                     Symbol("\$o3") => "output_0",
                     Symbol("\$o4") => "output_1"
                 ),
+                target_amplitude,
                 expected_parameters.symbols,
                 expected_parameters.values
             )
 
             @test_throws BoundsError expected_parameters["2"]
-            substitution_set = expected_parameters["0001"]
+            substitution_set = expected_parameters[target_amplitude]
 
             @test length(substitution_set) == length(expected_substitution_set) == 4
             @test size(substitution_set) == size(expected_substitution_set) == (4,)

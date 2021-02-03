@@ -143,9 +143,15 @@ end
 function NconCommand(output_name::String,
                         left_name::String, left_idxs::String,
                         right_name::String, right_idxs::String)
+    left_idxs = parse.(Int, split(left_idxs, ","))
+    right_idxs = parse.(Int, split(right_idxs, ","))
+
+    if left_idxs == [0] pop!(left_idxs) end
+    if right_idxs == [0] pop!(right_idxs) end
+
     NconCommand(Symbol(output_name),
-                Symbol(left_name), parse.(Int, split(left_idxs, ",")),
-                Symbol(right_name), parse.(Int, split(right_idxs, ",")))
+                Symbol(left_name), left_idxs,
+                Symbol(right_name), right_idxs)
 end
 
 
