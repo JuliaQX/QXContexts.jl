@@ -150,11 +150,18 @@ function execute!(ctx::QXContext{T}) where T
     cmds = ctx.cmds[split_idx:end] 
 
     # Figure out the names of the tensors being loaded by iocmds
-    loaded_tensors = [x.name for x in static_iocmds]
-    #FIXME: This is not nice - shouldn't be exposing the ParametricCommand implementation
-    append!(loaded_tensors, Symbol.([split(x.args, " ")[1] for x in parametric_iocmds]))
+    statically_loaded_tensors = [x.name for x in static_iocmds]
     # Remove any delete commands that delete tensors just loaded
-    filter!(x -> !(x isa DeleteCommand && x.label in loaded_tensors), cmds)
+    filter!(x -> !(x isa DeleteCommand && x.label in statically_loaded_tensors), cmds)
+
+    # Remove parametric delete commmands that will delete output tensors
+    filter!(x -> !(x isa ParametricCommand{DeleteCommand} && startswith(x.args, "\$o")), cmds)
+
+    #FIXME: I also don't think this is necessary anymore
+    #FIXME: This is not nice - shouldn't be exposing the ParametricCommand implementation
+    parametrically_loaded_tensors = [split(x.args, " ")[1] for x in parametric_iocmds]
+    # Remove any delete commands that delete tensors just loaded
+    filter!(x -> !(x isa ParametricCommand{DeleteCommand} && x.args in parametrically_loaded_tensors), cmds)
 
     for iocmd in static_iocmds
         ctx.data[iocmd.name] = read(input_file, String(iocmd.label))

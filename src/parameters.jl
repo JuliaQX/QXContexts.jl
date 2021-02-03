@@ -56,12 +56,9 @@ struct SubstitutionSet
 end
 
 function SubstitutionSet(amplitude::String, symbols::Vector{Symbol}, values::CartesianIndices)
-    subs = Dict{Symbol, String}()
-
-    # Generate substitutions for the amplitude values
-    for i in 1:length(amplitude)
-        subs[Symbol("\$o$i")] = "output_$(amplitude[i])"
-    end
+    subs = Dict{Symbol, String}([
+        Symbol("\$o$i") => "o$(i)_$ch" for (i, ch) in enumerate(amplitude)
+    ])
 
     return SubstitutionSet(subs, amplitude, symbols, values)
 end

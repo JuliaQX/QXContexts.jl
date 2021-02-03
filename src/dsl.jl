@@ -12,15 +12,22 @@ Abstract base type for all DSL commands
 
     Current spec:
 
-    Load tensor:      load <name:str> <hdf5_label:str>
-    Save tensor:      save <name:str> <hdf5_label:str>
-    Delete tensor:    del <name:str>
-    Reshape tensor:   reshape <name:str> <shape:list>
-    Permute tensor:   permute <name:str> <shape:list>
-    Contract tensors: ncon <output_name:str> <left_name:str> <left_idxs:list> <right_name:str> <right_idxs:list>
-    View tensor:      view <name:str> <target:str> <bond_idx:Int> <bond_range:list>
+Generate loads:   outputs <num:str>
+Load tensor:      load <name:str> <hdf5_label:str>
+Save tensor:      save <name:str> <hdf5_label:str>
+Delete tensor:    del <name:str>
+Reshape tensor:   reshape <name:str> <shape:list>
+Permute tensor:   permute <name:str> <shape:list>
+Contract tensors: ncon <output_name:str> <left_name:str> <left_idxs:list> <right_name:str> <right_idxs:list>
+View tensor:      view <name:str> <target:str> <bond_idx:Int> <bond_range:list>
 """
 abstract type AbstractCommand end
+
+# Required for `append` in the `parse_dsl` function
+import Base.iterate
+
+length(x::AbstractCommand) = 1
+Base.iterate(x::T, state::Bool=true) where {T <: AbstractCommand} = state ? (x, false) : nothing
 
 "Abstract base type for parametric DSL commands"
 struct ParametricCommand{T <: AbstractCommand} <: AbstractCommand
@@ -41,7 +48,7 @@ Represents a command to load a tensor
 
 Example
 =======
-load node_1 node_1
+`load node_1 node_1`
 """
 struct LoadCommand <: AbstractCommand
     name::Symbol
@@ -58,7 +65,7 @@ Represents a command to save a tensor
 
 Example
 =======
-save node_1 result
+`save node_1 result`
 """
 struct SaveCommand <: AbstractCommand
     name::Symbol
@@ -75,7 +82,7 @@ Represents a command to delete a tensor from memory, freeing resources
 
 Example
 =======
-del node_1
+`del node_1`
 """
 struct DeleteCommand <: AbstractCommand
     label::Symbol
@@ -91,7 +98,7 @@ Represents a command to reshape a tensor
 
 Example
 =======
-reshape node_1 4,1
+`reshape node_1 4,1`
 """
 struct ReshapeCommand <: AbstractCommand
     name::Symbol
@@ -111,7 +118,7 @@ Represents a command to permute a tensor
 
 Example
 =======
-permute node_1 2,1
+`permute node_1 2,1`
 """
 struct PermuteCommand <: AbstractCommand
     name::Symbol
@@ -130,7 +137,7 @@ Represents a command to contract two tensors
 
 Example
 =======
-ncon node_23 node_22 1,-1 node_10 1
+`ncon node_23 node_22 1,-1 node_10 1`
 """
 struct NconCommand <: AbstractCommand
     output_name::Symbol
@@ -162,7 +169,7 @@ Represents a command to
 
 Example
 =======
-view node_2 node_1 1 1
+`view node_2 node_1 1 1`
 """
 struct ViewCommand <: AbstractCommand
     name::Symbol
@@ -175,6 +182,37 @@ function ViewCommand(name::String, target::String, bond_index::String, bond_rang
     ViewCommand(Symbol(name), Symbol(target), parse(Int, bond_index), parse.(Int, split(bond_range, ",")))
 end
 
+"""
+    OutputsCommand(num_outputs::String)
+
+Helper function to generate required `LoadCommand`s
+
+Example
+=======
+`outputs 3`
+
+Generates
+
+```
+load o1_0 output_0
+load o1_1 output_1
+load o2_0 output_0
+load o2_1 output_1
+load o3_0 output_0
+load o3_1 output_1
+```
+"""
+struct OutputsCommand <: AbstractCommand
+end
+
+function OutputsCommand(num_outputs::String)
+    cmds = [
+        [LoadCommand("o$(i)_$j", "output_$j") for j in 0:1]
+        for i in 1:parse(Int, num_outputs)
+    ]
+    collect(Iterators.flatten(cmds))
+end
+
 
 ###############################################################################
 # Parametric DSL substitution functions
@@ -184,7 +222,7 @@ end
 const SubstitutionType = Dict{Symbol, String}
 
 "Regular Expression to find variable tokens within a parametric DSL command"
-const ParametricVariableNameRegex = r"(\$[^\s,]+)"
+const ParametricVariableNameRegex = r"(\$[^\s,_]+)"
 
 apply_substitution(command::AbstractCommand, _::SubstitutionType) = command
 
@@ -240,15 +278,16 @@ function parse_dsl(buffer::Vector{String})
         "permute" => PermuteCommand,
         "ncon"    => NconCommand,
         "view"    => ViewCommand,
+        "outputs" => OutputsCommand,
     )
 
     for line in buffer
         if any(!isascii, line)
             # This may not be an issue but err on the side of caution for now
-            error("Unsupported non-ASCII character encountered in DSL:\n\t'$line'")
+            throw(ArgumentError("Non-ascii DSL commands not supported:\n\t'$line'"))
         end
 
-        type, args = string.(split(line, " "; limit = 2))
+        type, args = string.(split(strip(line), " "; limit = 2))
 
         if occursin("\$", line)
             #command = parametric_command_types[type](args)
@@ -258,7 +297,7 @@ function parse_dsl(buffer::Vector{String})
             command = command_types[type](args...)
         end
 
-        push!(commands, command)
+        append!(commands, command)
     end
 
     return commands

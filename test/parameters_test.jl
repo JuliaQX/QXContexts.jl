@@ -114,10 +114,10 @@ amplitudes:
             target_amplitude = "0001"
             expected_substitution_set = SubstitutionSet(
                 Dict(
-                    Symbol("\$o1") => "output_0",
-                    Symbol("\$o2") => "output_0",
-                    Symbol("\$o3") => "output_0",
-                    Symbol("\$o4") => "output_1"
+                    Symbol("\$o1") => "o1_0",
+                    Symbol("\$o2") => "o2_0",
+                    Symbol("\$o3") => "o3_0",
+                    Symbol("\$o4") => "o4_1"
                 ),
                 target_amplitude,
                 expected_parameters.symbols,
@@ -138,10 +138,10 @@ amplitudes:
             @test substitution == Dict(
                 Symbol("\$v1") => "1",
                 Symbol("\$v2") => "1",
-                Symbol("\$o1") => "output_0",
-                Symbol("\$o2") => "output_0",
-                Symbol("\$o3") => "output_0",
-                Symbol("\$o4") => "output_1",
+                Symbol("\$o1") => "o1_0",
+                Symbol("\$o2") => "o2_0",
+                Symbol("\$o3") => "o3_0",
+                Symbol("\$o4") => "o4_1",
             )
 
             @test all(isequal.(collect(substitution_set), [x for x in substitution_set]))
