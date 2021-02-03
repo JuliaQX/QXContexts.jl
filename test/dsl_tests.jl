@@ -58,6 +58,7 @@ end
 
     @testset "Parametric DSL" begin
         command_buffer = Vector{String}([
+            "outputs 2",
             "load node_1 node_1",
             "load node_1 \$o1",
             "save \$o4 result",
@@ -78,6 +79,10 @@ end
         )
 
         expected = CommandList([
+            LoadCommand(:o1_0, :output_0),
+            LoadCommand(:o1_1, :output_1),
+            LoadCommand(:o2_0, :output_0),
+            LoadCommand(:o2_1, :output_1),
             LoadCommand(:node_1, :node_1),
             LoadCommand(:node_1, :output_0),
             SaveCommand(:output_1, :result),
@@ -93,6 +98,8 @@ end
             apply_substitution!(commands, subs)
 
             @test all(isequal.(commands, expected))
+            # Test non-ascii input
+            @test_throws ArgumentError parse_dsl(["∈"])
         end
 
         @testset "Parse DSL file" begin
