@@ -32,7 +32,7 @@ function Parameters(filename::String)
     data = YAML.load_file(filename, dicttype=Dict{String, Any})
     variable_symbols = Vector{Symbol}()
 
-    amplitudes = [amplitude for amplitude in data["amplitudes"]]
+    amplitudes = unique([amplitude for amplitude in data["amplitudes"]])
     #TODO: handle regex-y states; e.g. "00**" => ["0000", "0001", "0010", "0011"]
 
     bond_info = data["partitions"]["parameters"]
@@ -50,6 +50,7 @@ to be substituted into a parametric DSL command
 """
 struct SubstitutionSet
     subs::Dict{Symbol, String}
+    amplitude::String
     symbols::Vector{Symbol}
     values::CartesianIndices
 end
@@ -62,7 +63,7 @@ function SubstitutionSet(amplitude::String, symbols::Vector{Symbol}, values::Car
         subs[Symbol("\$o$i")] = "output_$(amplitude[i])"
     end
 
-    return SubstitutionSet(subs, symbols, values)
+    return SubstitutionSet(subs, amplitude, symbols, values)
 end
 
 
@@ -128,6 +129,8 @@ end
 function isequal(x::SubstitutionSet, y::SubstitutionSet)
     same_subs = x.subs == y.subs
 
+    same_amplitudes = x.amplitude == y.amplitude
+
     x_idx = sortperm(x.symbols)
     y_idx = sortperm(y.symbols)
 
@@ -135,5 +138,5 @@ function isequal(x::SubstitutionSet, y::SubstitutionSet)
 
     same_values = x.values.indices[x_idx] == y.values.indices[y_idx]
 
-    return same_subs && same_symbols && same_values
+    return same_subs && same_amplitudes && same_symbols && same_values
 end
