@@ -1,5 +1,9 @@
 module QXRun
 
+using JLD
+
+export execute
+
 include("parameters.jl")
 include("dsl.jl")
 include("execution.jl")
@@ -20,7 +24,11 @@ function execute(dsl_file::String, param_file::String, input_file::String, outpu
 
     ctx = QXContext(commands, params, input_file, output_file)
 
-    return execute!(ctx)
+    results = execute!(ctx)
+
+    JLD.save(output_file, "results", results)
+
+    return results
 end
 
 end
