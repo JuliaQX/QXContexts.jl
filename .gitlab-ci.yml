@@ -5,7 +5,6 @@
         using Pkg
         Pkg.build()
         Pkg.test(coverage=true)'
-    - pwd
     - >
       julia --startup-file=no --project=@. --trace-compile=example_precompile.jl bin/rundsl.jl -d examples/ghz/ghz_5.tl -p examples/ghz/ghz_5.yml -i examples/ghz/ghz_5.jld -o out.jld
     - |
@@ -14,7 +13,7 @@
         Pkg.add("PackageCompiler")
         using PackageCompiler;
         PackageCompiler.create_sysimage([:MPI, :TensorOperations, :QXRun],
-            precompile_statements_file="simple_example_precompile.jl",
+            precompile_statements_file="example_precompile.jl",
             sysimage_path="qxrun_sysimage.so");'
 .coverage:
   coverage: /Test coverage (\d+\.\d+%)/
