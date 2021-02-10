@@ -2,6 +2,7 @@ import YAML
 
 export Parameters, SubstitutionSet
 export getindex
+export num_qubits
 
 """
     Parameters(filename::String)
@@ -75,8 +76,14 @@ import Base.isequal
 length(p::Parameters) = length(p.amplitudes)
 size(p::Parameters) = (length(p), length(p.values))
 
+num_qubits(p::Parameters) = maximum(length.(p.amplitudes)) 
+
 function getindex(data::Parameters, amplitude_index::Int)
     return SubstitutionSet(data.amplitudes[amplitude_index], data.symbols, data.values)
+end
+
+function getindex(data::Parameters, range::UnitRange{Int})
+    return Parameters(data.amplitudes[range], data.symbols, data.values)
 end
 
 function getindex(data::Parameters, amplitude::String)

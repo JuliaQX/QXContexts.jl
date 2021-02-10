@@ -135,7 +135,7 @@ end
 Run a given context.
 """
 function execute!(ctx::QXContext{T}) where T
-    results = Dict{String, eltype(T)}()
+    results = Dict{String, eltype(T)}([k => 0 for k in ctx.params.amplitudes])
 
     input_file = JLD.jldopen(ctx.input_file, "r")
 
@@ -148,6 +148,8 @@ function execute!(ctx::QXContext{T}) where T
         filter(pred, iocmds), filter(!pred, iocmds)
     end
     cmds = ctx.cmds[split_idx:end] 
+
+    length(parametric_iocmds) != 0 && error("parametric io commands currently unsupported")
 
     # Figure out the names of the tensors being loaded by iocmds
     statically_loaded_tensors = [x.name for x in static_iocmds]
@@ -169,22 +171,17 @@ function execute!(ctx::QXContext{T}) where T
 
     # run command substitution
     for substitution_set in ctx.params
-        intermediate_nodes = DefaultDict{Symbol, Vector{eltype(T)}}(Vector{eltype(T)})
-
-        # Read everything from disk together
-        for iocmd in apply_substitution(parametric_iocmds, substitution_set.subs)
-            ctx.data[iocmd.name] = read(input_file, String(iocmd.label))
-        end
-
         for substitution in substitution_set
             subbed_cmds = apply_substitution(cmds, substitution)
 
             # Run each of the DSL commands in order
             for cmd in subbed_cmds
+                #TODO: Without checkpointing, etc. the SaveCommand *should* be the last command
+                #      so its execution can probably be pulled out of this loop
                 if cmd isa SaveCommand
                     # The data, `ctx.data[cmd.name]`, needs to be dereferenced with `[]`
                     # Although it's a scalar, it will be within an N-d array
-                    push!(intermediate_nodes[cmd.name], ctx.data[cmd.name][])
+                    results[substitution_set.amplitude] += ctx.data[cmd.name][]
                 else
                     #TODO: This could be moved out of the conditional entirely
                     #      but the symbol we're saving as would need to be updated to prevent overwrites
@@ -192,8 +189,6 @@ function execute!(ctx::QXContext{T}) where T
                 end
             end
         end
-
-        results[substitution_set.amplitude] = reduce_nodes(intermediate_nodes)
     end
 
     close(input_file)
