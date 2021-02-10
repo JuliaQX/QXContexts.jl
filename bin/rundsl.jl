@@ -1,3 +1,4 @@
+using MPI
 using QXRun
 using ArgParse
 
@@ -40,6 +41,11 @@ end
 QXRun entry point
 """
 function main(ARGS)
+    if !MPI.Initialized()
+        MPI.Init()
+    end
+    comm = MPI.COMM_WORLD
+
     args = parse_commandline(ARGS)
 
     dsl_file       = args["dsl"]
@@ -48,7 +54,7 @@ function main(ARGS)
     output_file    = args["output"] === nothing ? input_file : args["output"]
     verbose        = args["v"]
 
-    results = execute(dsl_file, parameter_file, input_file, output_file)
+    results = execute(dsl_file, parameter_file, input_file, output_file, comm)
 end
 
 
