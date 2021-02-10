@@ -1,7 +1,7 @@
 .before_script:
   before_script:
     - apt update
-    - apt install -y build_essential
+    - apt install -y build-essential
     - which gcc || echo "gcc not found"
 .script:
   script:
