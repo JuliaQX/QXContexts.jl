@@ -5,6 +5,19 @@
         using Pkg
         Pkg.build()
         Pkg.test(coverage=true)'
+    - |
+      julia --startup-file=no --project=@.
+        --trace-compile=example_precompile.jl bin/rundsl.jl 
+        -d examples/ghz_5.tl -p examples/ghz_5.yml 
+        -i examples/ghz_5.jld -o out.jld
+    - |
+      julia --startup-file=no --project=@. -e '
+        using Pkg
+        Pkg.add("PackageCompiler")
+        using PackageCompiler;
+        PackageCompiler.create_sysimage([:MPI, :TensorOperations, :QXRun],
+            precompile_statements_file="simple_example_precompile.jl",
+            sysimage_path="qxrun_sysimage.so");'
 .coverage:
   coverage: /Test coverage (\d+\.\d+%)/
   after_script:
@@ -16,6 +29,11 @@
         c, t = get_summary(process_folder())
         using Printf
         @printf "Test coverage %.2f%%\n" 100c / t'
+.artifacts:
+  artifacts:
+    name: qxrun_sysimage.so
+    paths:
+      - qxrun_sysimage.so
 Julia 1.6:
   image: julia:1.6
   tags:
@@ -23,3 +41,4 @@ Julia 1.6:
   extends:
     - .script
     - .coverage
+    - .artifacts
