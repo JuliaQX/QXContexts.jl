@@ -5,8 +5,8 @@
         using Pkg
         Pkg.build()
         Pkg.test(coverage=true)'
-    - >
-      julia --startup-file=no --project=@. --trace-compile=example_precompile.jl bin/rundsl.jl -d examples/ghz/ghz_5.tl -p examples/ghz/ghz_5.yml -i examples/ghz/ghz_5.jld -o out.jld
+    - julia --startup-file=no --project=@. --trace-compile=example_precompile.jl bin/rundsl.jl -d examples/ghz/ghz_5.tl -p examples/ghz/ghz_5.yml -i examples/ghz/ghz_5.jld -o out.jld
+    - apt install build-essential
     - |
       julia --startup-file=no --project=@. -e '
         using Pkg
