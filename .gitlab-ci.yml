@@ -5,6 +5,7 @@
         using Pkg
         Pkg.build()
         Pkg.test(coverage=true)'
+    - pwd
     - >
       julia --startup-file=no --project=@. --trace-compile=example_precompile.jl bin/rundsl.jl -d ../examples/ghz_5.tl -p ../examples/ghz_5.yml -i ../examples/ghz_5.jld -o out.jld
     - |
