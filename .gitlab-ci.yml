@@ -1,9 +1,10 @@
-.script:
-  script:
-    - which gcc
+.before_script:
+  before_script:
     - apt update
     - apt install -y build_essential
-    - which gcc
+    - which gcc || echo "gcc not found"
+.script:
+  script:
     - |
       julia --project=@. -e '
         using Pkg
@@ -39,6 +40,7 @@ Julia 1.6:
   tags:
     - docker
   extends:
+    - .before_script
     - .script
     - .coverage
     - .artifacts
