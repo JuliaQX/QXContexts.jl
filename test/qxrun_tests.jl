@@ -7,9 +7,10 @@ using Test
 @testset "5 qubit GHZ" begin
     Core.eval(Main, :(import JLD))
 
-    dsl_file         = "../examples/ghz/ghz_5.tl"
-    param_file       = "../examples/ghz/ghz_5.yml"
-    input_data_file  = "../examples/ghz/ghz_5.jld"
+    test_path = @__DIR__
+    dsl_file         = test_path * "/../examples/ghz/ghz_5.tl"
+    param_file       = test_path * "/../examples/ghz/ghz_5.yml"
+    input_data_file  = test_path * "/../examples/ghz/ghz_5.jld"
     output_data_file = tempname() * ".jld"
 
     expected = Dict{String, ComplexF32}(
