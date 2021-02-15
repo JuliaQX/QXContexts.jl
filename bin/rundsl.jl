@@ -25,8 +25,8 @@ function parse_commandline(ARGS)
             arg_type = String
         "--output", "-o"
             help = "Output data file path (defaults to input file)"
-            default = nothing
-            arg_type = Union{Nothing, String}
+            required = true
+            arg_type = String
         "-v"
             help = "Enable verbose output"
             action = :count_invocations
@@ -51,7 +51,7 @@ function main(ARGS)
     dsl_file       = args["dsl"]
     parameter_file = args["parameter-file"]
     input_file     = args["input"]
-    output_file    = args["output"] === nothing ? input_file : args["output"]
+    output_file    = args["output"]
     verbose        = args["v"]
 
     results = execute(dsl_file, parameter_file, input_file, output_file, comm)
