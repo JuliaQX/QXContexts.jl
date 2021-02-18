@@ -97,10 +97,6 @@ function execute(dsl_file::String, param_file::String, input_file::String, outpu
     my_rank = MPI.Comm_rank(comm)
     world_size = MPI.Comm_size(comm)
 
-    if output_file == ""
-        output_file = input_file
-    end
-
     if my_rank == root_rank
         commands = parse_dsl(dsl_file)
         params = Parameters(param_file)
