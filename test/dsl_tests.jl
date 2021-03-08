@@ -120,6 +120,53 @@ end
             end
         end
     end
+
+    @testset "Commented and Versioned DSL" begin
+        version_dsl = VersionNumber("0.1.0")
+        command_buffer = Vector{String}([
+            "# version: $version_dsl",
+            "load node_1 node_1 # comment 1",
+            "save node_27 result",
+            "# comment 2",
+            "del node_8",
+            "reshape node_1 4,1",
+            "permute node_1 2,1",
+            "ncon node_22 node_21 1,-1,-2 node_9 1",
+            "view node_13 node_2 4 0",
+            "# comment 3",
+        ])
+        expected = CommandList([
+            LoadCommand(:node_1, :node_1),
+            SaveCommand(:node_27, :result),
+            DeleteCommand(:node_8),
+            ReshapeCommand(:node_1, [[4,1]]),
+            PermuteCommand(:node_1, [2,1]),
+            NconCommand(:node_22, :node_21, [1,-1,-2], :node_9, [1]),
+            ViewCommand(:node_13, :node_2, 4, [0])
+        ])
+
+        @testset "Parse DSL buffer" begin
+            commands = parse_dsl(command_buffer)
+            @test all(isequal.(commands, expected))
+        end
+
+        @testset "Parse DSL file" begin
+            fname = tempname()
+            try
+                open(fname, "w") do file
+                    for line in command_buffer
+                        write(file, line, "\n")
+                    end
+                end
+
+                commands = parse_dsl(fname)
+
+                @test all(isequal.(commands, expected))
+            finally
+                rm(fname, force=true)
+            end
+        end
+    end
 end
 
 end
