@@ -7,6 +7,9 @@ export NconCommand, ViewCommand
 export apply_substitution, apply_substitution!
 export parse_dsl
 
+# Define compatible DSL file version number, which must match when parsed.
+const VERSION_DSL = VersionNumber("0.1.0")
+
 """
 Abstract base type for all DSL commands
 
@@ -263,6 +266,52 @@ end
 ###############################################################################
 
 """
+    check_compatible_version_dsl(line::String)
+
+Checks if version is defined in line and checks compatibility with VERSION_DSL 
+"""
+function check_compatible_version_dsl(line::String)
+    exists_version_dsl = startswith(strip(line), '#') && occursin("version:", line)
+    is_compatible::Bool = true
+
+    if exists_version_dsl
+        version_dsl = strip(last(split(line,"version:")))
+        version_dsl = VersionNumber(version_dsl)
+
+        # Simple logic enforcing matching versions, which can be extended
+        is_compatible = version_dsl == VERSION_DSL
+    else
+        version_dsl = VERSION_DSL
+    end
+
+    return is_compatible, version_dsl
+end
+
+"""
+    parse_command(line::String, command_types::Base.ImmutableDict)
+
+Parse a DSL command
+"""
+function parse_command(line::String, command_types::Base.ImmutableDict)
+    if any(!isascii, line)
+        # This may not be an issue but err on the side of caution for now
+        throw(ArgumentError("Non-ascii DSL commands not supported:\n\t'$line'"))
+    end
+
+    type, args = string.(split(strip(line), " "; limit = 2))
+
+    if occursin("\$", line)
+        #command = parametric_command_types[type](args)
+        command = ParametricCommand{command_types[type]}(args)
+    else
+        args = string.(split(args, " "))
+        command = command_types[type](args...)
+    end
+
+    return command
+end
+
+"""
     parse_dsl(buffer::Vector{String})
 
 Parse a list of DSL commands and generate a CommandList for execution
@@ -281,23 +330,18 @@ function parse_dsl(buffer::Vector{String})
         "outputs" => OutputsCommand,
     )
 
+    line = string(strip(first(buffer)))
+    is_compatible, version_dsl = check_compatible_version_dsl(line)
+    if !is_compatible
+        throw(ArgumentError("DSL version not compatible:\n\t'$version_dsl', expected '$VERSION_DSL'"))
+    end
+
     for line in buffer
-        if any(!isascii, line)
-            # This may not be an issue but err on the side of caution for now
-            throw(ArgumentError("Non-ascii DSL commands not supported:\n\t'$line'"))
+        line_command = string(first(split(line, '#')))
+        if !isempty(line_command)
+            command = parse_command(line_command, command_types) 
+            append!(commands, command)
         end
-
-        type, args = string.(split(strip(line), " "; limit = 2))
-
-        if occursin("\$", line)
-            #command = parametric_command_types[type](args)
-            command = ParametricCommand{command_types[type]}(args)
-        else
-            args = string.(split(args, " "))
-            command = command_types[type](args...)
-        end
-
-        append!(commands, command)
     end
 
     return commands
