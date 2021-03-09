@@ -10,7 +10,7 @@ using MPI
     @testset "QXLogger" begin
         @testset "INFO test" begin
             io = IOBuffer()
-            global_logger(QXLogger(io))
+            global_logger(QXLogger(io; show_info_source=true))
             @info "info_test"
 
             log = split(String(take!(io)), "\n")[1:end-1]
@@ -29,9 +29,9 @@ using MPI
 
         @testset "WARN test" begin
             io = IOBuffer()
-            global_logger(QXLogger(io))
+            global_logger(QXLogger(io; show_info_source=true))
 
-            line_num = @__LINE__; @warn "warn_test"
+            @warn "warn_test"; line_num = @__LINE__
 
             log = split(String(take!(io)), "\n")[1:end-1]
             df = DateFormat("[yyyy/mm/dd-HH:MM:SS.sss]");
@@ -53,7 +53,7 @@ using MPI
 
         @testset "ERROR test" begin
             io = IOBuffer()
-            global_logger(QXLogger(io))
+            global_logger(QXLogger(io; show_info_source=true))
 
             line_num = @__LINE__; @error "error_test"
 
@@ -86,14 +86,14 @@ using MPI
                 MPI.Init()
             end
 
-            global_logger(QXLoggerMPIPerRank())
+            global_logger(QXLoggerMPIPerRank(; show_info_source=true))
 
             line_num = @__LINE__; @warn "warn_test"
 
             df = DateFormat("[yyyy/mm/dd-HH:MM:SS.sss]");
             @test isdir("qxrun_io_" * string(global_logger().session_id))
 
-            log = readlines("qxrun_io_" * string(global_logger().session_id) * "/rank_0.log")
+            log = readlines( joinpath( "qxrun_io_" * string(global_logger().session_id), "rank_0.log") )
 
             for l in log
                 log_elem = split(l, " ")

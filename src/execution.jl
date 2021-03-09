@@ -239,7 +239,7 @@ function execute!(ctx::QXContext{T}) where T
         io = IOBuffer();
         print_timer(io, timer_output)
         op = String(take!(io))
-        @info "Timed calls:\n"*op*"\n"
+        @info "Timed calls:\n$(op)\n"
     end
 
     #TODO: These results could also be written to `ctx.output_file`

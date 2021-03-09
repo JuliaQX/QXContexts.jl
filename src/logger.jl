@@ -12,8 +12,6 @@ import UUIDs: UUID, uuid4
 import Logging: shouldlog, min_enabled_level, catch_exceptions, handle_message
 
 const PerfLogger = Logging.LogLevel(-125)
-const RankTimerLogger = Logging.LogLevel(-250)
-const RankTimer = Logging.LogLevel(-50)
 
 struct QXLogger <: Logging.AbstractLogger
     stream :: IO
@@ -108,35 +106,18 @@ function level_to_string(level)
     level == Logging.Info  && return "INFO"
     level == Logging.Debug && return "DEBUG"
     level == PerfLogger && return "PERF"
-    level == TimerLogger && return "TIMER"
-    level == RankTimerLogger && return "RANKTIMERLOGGER"
     return string(level)
 end
 
 macro perf(expression)
-    ex = repr(expression)
-    return :(t = @elapsed res = $expression; Logging.@logmsg(PerfLogger, (t, $ex)); res)
-end
-
-macro timer(expression)
-    ex = repr(expression)
-    return :(t = @elapsed res = $expression; Logging.@logmsg(TimerLogger, (t, $ex)); res)
-end
-
-"""
-    rank_log(rank, expression)
-
-Enables logging of single or multiple selected ranks for function =evaluation elapsed time. 
-Set rank to -1 to log all ranks
-"""
-macro rank_log(rank::Union{Int, Vector{Int}}, expression)
-    if true === true
+    if haskey(ENV, "QXRUN_TIMER")
         ex = repr(expression)
-        return :(t = @elapsed res = $expression; Logging.@logmsg(RankTimerLogger, (t, $ex)); res)
+        return :(t = @elapsed res = $expression; Logging.@logmsg(PerfLogger, (t, $ex)); res)
     else
         return esc(expression)
     end
 end
+
 
 """
     stamp_builder(rank::Int)
@@ -171,13 +152,11 @@ function handle_message(logger::Union{QXLogger, QXLoggerMPIShared}, level, messa
     end
 
     module_name = something(_module, "nothing")
-    file_name   = something(filepath, "nothing")
-    line_number = something(line, "nothing")
     msg_timestamp = stamp_builder(rank)
 
     formatted_message = "$(msg_timestamp) $(level_name) $message"
     if logger.show_info_source || level != Logging.Info
-        formatted_message *= " $("-@->") $("$file_name:$line_number")"
+        formatted_message *= " -@-> $(filepath):$(line)"
     end
     formatted_message *= "\n"
     
@@ -207,16 +186,15 @@ function handle_message(logger::QXLoggerMPIPerRank, level, message, _module, gro
     rank = MPI.Comm_rank(logger.comm)
     level_name = level_to_string(level)
 
-    file = open("qxrun_io_" * string(logger.session_id) * "/rank_" * "$(rank).log", read=true,  write=true, create=true, append=true)
+    log_path = joinpath( "qxrun_io_" * string(global_logger().session_id), "rank_$(rank).log")
+    file = open(log_path, read=true,  write=true, create=true, append=true)
 
     module_name = something(_module, "nothing")
-    file_name   = something(filepath, "nothing")
-    line_number = something(line, "nothing")
     msg_timestamp = stamp_builder(rank)
 
     formatted_message = "$(msg_timestamp) $(level_name) $message"
     if logger.show_info_source || level != Logging.Info
-        formatted_message *= " $("-@->") $("$file_name:$line_number")"
+        formatted_message *= " -@-> $(filepath):$(line)"
     end
     formatted_message *= "\n"
 
