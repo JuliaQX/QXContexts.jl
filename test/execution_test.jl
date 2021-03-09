@@ -1,6 +1,8 @@
 module ExecutionTests
 
-using QXRun
+using QXRun.DSL
+using QXRun.Param
+using QXRun.Execution
 using Test
 
 import JLD
@@ -19,17 +21,17 @@ function generate_command_list()
         LoadCommand(:t875, :data_3)
         LoadCommand(:t876, :data_3)
         LoadCommand(:t877, :data_3)
-        QXRun.ParametricCommand{ViewCommand}("t872_v1 t872 1 \$v1")
-        QXRun.ParametricCommand{ViewCommand}("t873_v1 t873 4 \$v1")
-        QXRun.ParametricCommand{ViewCommand}("t873_v1_v2 t873_v1 1 \$v2")
-        QXRun.ParametricCommand{ViewCommand}("t874_v2 t874 4 \$v2")
-        QXRun.ParametricCommand{ViewCommand}("t874_v2_v3 t874_v2 1 \$v3")
-        QXRun.ParametricCommand{ViewCommand}("t880_v3 \$o3 1 \$v3")
-        QXRun.ParametricCommand{ViewCommand}("t874_v2_v3_v4 t874_v2_v3 2 \$v4")
-        QXRun.ParametricCommand{ViewCommand}("t879_v4 \$o2 1 \$v4")
-        QXRun.ParametricCommand{NconCommand}("t881 t873_v1_v2 -1,1,-2,-3 \$o1 1")
+        ParametricCommand{ViewCommand}("t872_v1 t872 1 \$v1")
+        ParametricCommand{ViewCommand}("t873_v1 t873 4 \$v1")
+        ParametricCommand{ViewCommand}("t873_v1_v2 t873_v1 1 \$v2")
+        ParametricCommand{ViewCommand}("t874_v2 t874 4 \$v2")
+        ParametricCommand{ViewCommand}("t874_v2_v3 t874_v2 1 \$v3")
+        ParametricCommand{ViewCommand}("t880_v3 \$o3 1 \$v3")
+        ParametricCommand{ViewCommand}("t874_v2_v3_v4 t874_v2_v3 2 \$v4")
+        ParametricCommand{ViewCommand}("t879_v4 \$o2 1 \$v4")
+        ParametricCommand{NconCommand}("t881 t873_v1_v2 -1,1,-2,-3 \$o1 1")
         DeleteCommand(:t873_v1_v2)
-        QXRun.ParametricCommand{DeleteCommand}("\$o1")
+        ParametricCommand{DeleteCommand}("\$o1")
         NconCommand(:t882, :t881, [-1,1,-2], :t876, [1])
         DeleteCommand(:t881)
         DeleteCommand(:t876)
@@ -79,14 +81,14 @@ end
             :b => [2,2,2],
             :c => [3,3,3],
         )
-        @test QXRun.reduce_nodes(d) == 18
+        @test reduce_nodes(d) == 18
 
         push!(d[:b], 2)
-        @test_throws DimensionMismatch QXRun.reduce_nodes(d) == 18
+        @test_throws DimensionMismatch reduce_nodes(d) == 18
 
         push!(d[:a], 1)
         push!(d[:c], 3)
-        @test QXRun.reduce_nodes(d) == 24
+        @test reduce_nodes(d) == 24
     end
 
     test_data = Dict{String, Array{ComplexF32}}(
@@ -109,7 +111,7 @@ end
             cmds = generate_command_list()
             params = generate_parameters()
 
-            ctx = QXRun.QXContext(cmds, params, input_data_filename, output_data_filename)
+            ctx = QXContext(cmds, params, input_data_filename, output_data_filename)
             
             # Check default data type
             @test typeof(ctx.data) <: Dict{Symbol, Array{ComplexF32}}
@@ -120,13 +122,13 @@ end
                 "111" => 1 / sqrt(2)
             )
 
-            result = QXRun.execute!(deepcopy(ctx))
+            result = execute!(deepcopy(ctx))
             @test result == expected
 
             @testset "Execute LoadCommand" begin
                 local_ctx = deepcopy(ctx)
                 command = LoadCommand(:node_1, :node_1)
-                QXRun.execute!(command, local_ctx)
+                execute!(command, local_ctx)
 
                 @test local_ctx.data[:node_1] == test_data["node_1"] 
             end
@@ -135,7 +137,7 @@ end
                 local_ctx = deepcopy(ctx)
                 local_ctx.data[:test] = test_data["test_result"]
                 command = SaveCommand(:test, :test_label)
-                QXRun.execute!(command, local_ctx)
+                execute!(command, local_ctx)
 
                 @test JLD.load(local_ctx.output_file, "test_label") == test_data["test_result"] 
             end
@@ -144,7 +146,7 @@ end
                 local_ctx = deepcopy(ctx)
                 local_ctx.data[:test] = test_data["test_result"]
                 command = DeleteCommand(:test)
-                QXRun.execute!(command, local_ctx)
+                execute!(command, local_ctx)
 
                 @test length(local_ctx.data) == 0
             end
@@ -153,7 +155,7 @@ end
                 local_ctx = deepcopy(ctx)
                 local_ctx.data[:test] = test_data["test_result"]
                 command = ReshapeCommand(:test, [[1,2]])
-                QXRun.execute!(command, local_ctx)
+                execute!(command, local_ctx)
 
                 @test local_ctx.data[:test] == reshape(test_data["test_result"], 4)
             end
@@ -162,7 +164,7 @@ end
                 local_ctx = deepcopy(ctx)
                 local_ctx.data[:test] = test_data["test_result"]
                 command = PermuteCommand(:test, [2,1])
-                QXRun.execute!(command, local_ctx)
+                execute!(command, local_ctx)
 
                 @test local_ctx.data[:test] == permutedims(test_data["test_result"], [2,1])
             end
@@ -172,7 +174,7 @@ end
                 local_ctx.data[:input_1] = test_data["node_1"]
                 local_ctx.data[:input_2] = test_data["node_2"]
                 command = NconCommand(:result, :input_1, [-1,1], :input_2, [1,-2])
-                QXRun.execute!(command, local_ctx)
+                execute!(command, local_ctx)
 
                 @test local_ctx.data[:result] == test_data["node_1"] * test_data["node_2"];
             end
@@ -181,7 +183,7 @@ end
                 local_ctx = deepcopy(ctx)
                 local_ctx.data[:test] = test_data["test_result"]
                 command = ViewCommand(:view, :test, 2, [1])
-                QXRun.execute!(command, local_ctx)
+                execute!(command, local_ctx)
 
                 @test all(local_ctx.data[:view] .== @view test_data["test_result"][:,1])
             end

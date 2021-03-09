@@ -1,8 +1,27 @@
+module Execution
+
+export QXContext, execute!, timer_output, reduce_nodes
+export execute, partition, gather
+
 using DataStructures
 
 import JLD
+import LinearAlgebra
 import TensorOperations
+import QXRun.Logger: @debug
+using TimerOutputs
+using QXRun.DSL
+using QXRun.Param
 
+# Import MPI-specific functions
+include("mpi_execution.jl")
+import .MPIExecution: execute, gather, partition
+
+const timer_output = TimerOutput()
+if haskey(ENV, "QXRUN_TIMER")
+    timeit_debug_enabled() = return true # Function fails to be defined by enable_debug_timings
+    TimerOutputs.enable_debug_timings(Execution)
+end
 
 """
     QXContext(cmds::CommandList, params::Parameters, input_file::String, output_file::String)
@@ -38,7 +57,10 @@ end
 Execute a load DSL command
 """
 function execute!(cmd::LoadCommand, ctx::QXContext{T}) where {T}
-    ctx.data[cmd.name] = JLD.load(ctx.input_file, String(cmd.label))
+    @timeit_debug timer_output "DSL_load" begin
+        ctx.data[cmd.name] = JLD.load(ctx.input_file, String(cmd.label))
+    @debug "Load DSL command: name=$(cmd.name), input_file=$(ctx.input_file), label=$(String(cmd.label))"
+    end
     nothing
 end
 
@@ -48,9 +70,12 @@ end
 Execute a save DSL command
 """
 function execute!(cmd::SaveCommand, ctx::QXContext{T}) where {T}
-    mode = isfile(ctx.output_file) ? "r+" : "w"
-    JLD.jldopen(ctx.output_file, mode) do file
-        file[String(cmd.label)] = ctx.data[cmd.name]
+    @timeit_debug timer_output "DSL_save" begin
+        mode = isfile(ctx.output_file) ? "r+" : "w"
+        JLD.jldopen(ctx.output_file, mode) do file
+            file[String(cmd.label)] = ctx.data[cmd.name]
+        end
+    @debug "Save DSL command: name=$(cmd.name), output_file=$(ctx.output_file), label=$(String(cmd.label))"
     end
     nothing
 end
@@ -61,7 +86,10 @@ end
 Execute a delete DSL command
 """
 function execute!(cmd::DeleteCommand, ctx::QXContext{T}) where {T}
-    delete!(ctx.data, cmd.label)
+    @timeit_debug timer_output "DSL_delete" begin
+        delete!(ctx.data, cmd.label)
+    @debug "Delete DSL command: label=$(String(cmd.label))"
+    end
     nothing
 end
 
@@ -71,9 +99,12 @@ end
 Execute a reshape DSL command
 """
 function execute!(cmd::ReshapeCommand, ctx::QXContext{T}) where {T}
-    tensor_dims = size(ctx.data[cmd.name])
-    new_dims = [prod([tensor_dims[y] for y in x]) for x in cmd.dims]
-    ctx.data[cmd.name] = reshape(ctx.data[cmd.name], new_dims...)
+    @timeit_debug timer_output "DSL_reshape" begin
+        tensor_dims = size(ctx.data[cmd.name])
+        new_dims = [prod([tensor_dims[y] for y in x]) for x in cmd.dims]
+        ctx.data[cmd.name] = reshape(ctx.data[cmd.name], new_dims...)
+    @debug "Reshape DSL command: name=$(cmd.name), dims=$(tensor_dims), new_dims=$(new_dims)"
+    end
     nothing
 end
 
@@ -83,7 +114,10 @@ end
 Execute a permute DSL command
 """
 function execute!(cmd::PermuteCommand, ctx::QXContext{T}) where {T}
-    ctx.data[cmd.name] = permutedims(ctx.data[cmd.name], cmd.dims)
+    @timeit_debug timer_output "DSL_permute" begin
+        ctx.data[cmd.name] = permutedims(ctx.data[cmd.name], cmd.dims)
+    @debug "Permute DSL command: name=$(cmd.name), dims=$(cmd.dims)"
+    end
     nothing
 end
 
@@ -95,11 +129,16 @@ Execute an ncon DSL command
 function execute!(cmd::NconCommand, ctx::QXContext{T}) where {T}
     left_idxs = Tuple(cmd.left_idxs)
     right_idxs = Tuple(cmd.right_idxs)
-    ctx.data[cmd.output_name] = TensorOperations.tensorcontract(
-        ctx.data[cmd.left_name], left_idxs,
-        ctx.data[cmd.right_name], right_idxs,
-        Tuple(TensorOperations.symdiff(left_idxs, right_idxs))
-    )
+
+    t_symdiff = Tuple(TensorOperations.symdiff(left_idxs, right_idxs))
+    @timeit_debug timer_output "DSL_ncon" begin
+        ctx.data[cmd.output_name] = TensorOperations.tensorcontract(
+            ctx.data[cmd.left_name], left_idxs,
+            ctx.data[cmd.right_name], right_idxs,
+            t_symdiff
+        )
+    @debug "ncon DSL command: output_name=$(cmd.output_name), left_idxs=$(left_idxs), right_idxs=$(right_idxs), contract_indices=$(t_symdiff)"
+    end
     nothing
 end
 
@@ -109,9 +148,12 @@ end
 Execute a view DSL command
 """
 function execute!(cmd::ViewCommand, ctx::QXContext{T}) where {T}
-    dims = size(ctx.data[cmd.target])
-    view_index_list = [i == cmd.bond_index ? cmd.bond_range : UnitRange(1, dims[i]) for i in 1:length(dims)]
-    ctx.data[cmd.name] = @view ctx.data[cmd.target][view_index_list...]
+    @timeit_debug timer_output "DSL_view" begin
+        dims = size(ctx.data[cmd.target])
+        view_index_list = [i == cmd.bond_index ? cmd.bond_range : UnitRange(1, dims[i]) for i in 1:length(dims)]
+        ctx.data[cmd.name] = @view ctx.data[cmd.target][view_index_list...]
+    @debug "view DSL command: name=$(cmd.name), target=$(cmd.target), dims=$(dims)"
+    end
     nothing
 end
 
@@ -139,7 +181,7 @@ function execute!(ctx::QXContext{T}) where T
 
     input_file = JLD.jldopen(ctx.input_file, "r")
 
-    split_idx = findfirst(x -> !(x isa LoadCommand) && !(x isa QXRun.ParametricCommand{LoadCommand}), ctx.cmds)
+    split_idx = findfirst(x -> !(x isa LoadCommand) && !(x isa ParametricCommand{LoadCommand}), ctx.cmds)
     # static I/O commands do not depends on any substitutions and can be run
     # once for all combinations of output qubits and slices
     static_iocmds, parametric_iocmds = begin
@@ -193,6 +235,40 @@ function execute!(ctx::QXContext{T}) where T
 
     close(input_file)
 
+    if haskey(ENV, "QXRUN_TIMER")
+        io = IOBuffer();
+        print_timer(io, timer_output)
+        op = String(take!(io))
+        @info "Timed calls:\n"*op*"\n"
+    end
+
     #TODO: These results could also be written to `ctx.output_file`
     return results
+end
+
+
+"""
+    execute(dsl_file::String, param_file::String, input_file::String, output_file::String)
+
+Run the commands in dsl_file, parameterised by the contents of param_file, with inputs
+specified in input_file, and save the output(s) to output_file.
+"""
+function execute(dsl_file::String, param_file::String, input_file::String, output_file::String)
+    if output_file == ""
+        output_file = input_file
+    end
+
+    commands = parse_dsl(dsl_file)
+    params = Parameters(param_file)
+
+    ctx = QXContext(commands, params, input_file, output_file)
+
+    results = execute!(ctx)
+
+    JLD.save(output_file, "results", results)
+
+    return results
+end
+
+
 end

@@ -1,6 +1,6 @@
 module DSLTests
 
-using QXRun
+using QXRun.DSL
 using Test
 
 import Base.isequal
@@ -69,7 +69,7 @@ end
             "view node_13 node_2 4 \$v2",
         ])
 
-        subs = QXRun.SubstitutionType(
+        subs = DSL.SubstitutionType(
             Symbol("\$v1") => "1",
             Symbol("\$v2") => "2",
             Symbol("\$o1") => "output_0",
@@ -78,7 +78,7 @@ end
             Symbol("\$o4") => "output_1"
         )
 
-        expected = CommandList([
+        expected = DSL.CommandList([
             LoadCommand(:o1_0, :output_0),
             LoadCommand(:o1_1, :output_1),
             LoadCommand(:o2_0, :output_0),

@@ -1,3 +1,7 @@
+module Param
+
+export Parameters, SubstitutionSet, iterate, isequal, getindex, length, size, num_qubits
+
 import YAML
 
 export Parameters, SubstitutionSet
@@ -64,7 +68,6 @@ function SubstitutionSet(amplitude::String, symbols::Vector{Symbol}, values::Car
     return SubstitutionSet(subs, amplitude, symbols, values)
 end
 
-
 import Base.length, Base.size
 import Base.getindex
 import Base.iterate
@@ -114,6 +117,7 @@ end
 ###############################################################################
 # SubstitutionSet type interface
 ###############################################################################
+
 length(s::SubstitutionSet) = length(s.values)
 size(s::SubstitutionSet) = (length(s),)
 
@@ -143,4 +147,6 @@ function isequal(x::SubstitutionSet, y::SubstitutionSet)
     same_values = x.values.indices[x_idx] == y.values.indices[y_idx]
 
     return same_subs && same_amplitudes && same_symbols && same_values
+end
+
 end

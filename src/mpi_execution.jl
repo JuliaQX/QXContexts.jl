@@ -1,5 +1,13 @@
+module MPIExecution
+
+export partition, gather, execute
+
 using MPI
 using DataStructures
+using QXRun.Execution
+using QXRun.DSL
+using QXRun.Param
+import JLD
 
 """
     partition(params, comm::MPI.Comm)
@@ -15,7 +23,7 @@ Due to this imbalance, it is necessary to return the partition sizes to the call
 so it can decided whether is can call `MPI.Gather` (if all partitions are the same)
 or MPI.Gatherv (if partition sizes differ).
 """
-function partition(params, comm::MPI.Comm)
+function partition(params::Parameters, comm::MPI.Comm)
     my_rank = MPI.Comm_rank(comm)
     world_size = MPI.Comm_size(comm)
 
@@ -53,6 +61,8 @@ Returns the required result for the root_rank and an empty Dict for all others.
 """
 function gather(local_results::Dict{String, T}, partition_sizes::Vector{Int}, root_rank::Int, comm::MPI.Comm;
                 num_qubits = Sys.WORD_SIZE) where {T}
+
+    
     # Convert the Dict of results into an Array of Tuples with the amplitude bitstring is parsed to a decimal number
     bitstype_local_results = [parse(Int, p.first; base=2) => p.second for p in collect(local_results)]
 
@@ -97,6 +107,10 @@ function execute(dsl_file::String, param_file::String, input_file::String, outpu
     my_rank = MPI.Comm_rank(comm)
     world_size = MPI.Comm_size(comm)
 
+    if output_file == ""
+        output_file = input_file
+    end
+
     if my_rank == root_rank
         commands = parse_dsl(dsl_file)
         params = Parameters(param_file)
@@ -121,4 +135,6 @@ function execute(dsl_file::String, param_file::String, input_file::String, outpu
     end
 
     return results
+end
+
 end

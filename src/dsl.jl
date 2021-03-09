@@ -1,11 +1,19 @@
+module DSL
+
+# Types
 export AbstractCommand
 export CommandList
+export ParametricCommand
+export SubstitutionType
+
 # Standard Commands
 export LoadCommand, SaveCommand, DeleteCommand, ReshapeCommand, PermuteCommand
 export NconCommand, ViewCommand
+
 # Functions
 export apply_substitution, apply_substitution!
 export parse_dsl
+export iterate, length
 
 # Define compatible DSL file version number, which must match when parsed.
 const VERSION_DSL = VersionNumber("0.1.0")
@@ -29,7 +37,7 @@ abstract type AbstractCommand end
 # Required for `append` in the `parse_dsl` function
 import Base.iterate
 
-length(x::AbstractCommand) = 1
+Base.length(x::AbstractCommand) = 1
 Base.iterate(x::T, state::Bool=true) where {T <: AbstractCommand} = state ? (x, false) : nothing
 
 "Abstract base type for parametric DSL commands"
@@ -356,4 +364,6 @@ function parse_dsl(filename::String)
     return open(filename) do file
         parse_dsl(readlines(file))
     end
+end
+
 end
