@@ -145,7 +145,6 @@ amplitudes:
 
             @test all(isequal.(collect(substitution_set), [x for x in substitution_set]))
         end
-        
     finally
         rm(fname, force=true)
     end

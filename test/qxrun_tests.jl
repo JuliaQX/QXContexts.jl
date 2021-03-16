@@ -1,17 +1,18 @@
 module QXRunTests
 
 using QXRun
-using JLD
+using JLD2
+using FileIO
 using Test
 
 @testset "5 qubit GHZ" begin
-    Core.eval(Main, :(import JLD))
+    Core.eval(Main, :(import JLD2))
 
     test_path = @__DIR__
-    dsl_file         = test_path * "/../examples/ghz/ghz_5.tl"
+    dsl_file         = test_path * "/../examples/ghz/ghz_5.qx"
     param_file       = test_path * "/../examples/ghz/ghz_5.yml"
-    input_data_file  = test_path * "/../examples/ghz/ghz_5.jld"
-    output_data_file = tempname() * ".jld"
+    input_data_file  = test_path * "/../examples/ghz/ghz_5.jld2"
+    output_data_file = tempname() * ".jld2"
 
     expected = Dict{String, ComplexF32}(
         "00111" => 0 + 0im,
@@ -25,7 +26,7 @@ using Test
     try
         execute(dsl_file, param_file, input_data_file, output_data_file)
 
-        @test expected == JLD.load(output_data_file, "results")
+        @test expected == FileIO.load(output_data_file, "results")
     finally
         rm(output_data_file, force=true)
     end
