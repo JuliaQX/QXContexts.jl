@@ -7,7 +7,7 @@ using DataStructures
 using QXRun.Execution
 using QXRun.DSL
 using QXRun.Param
-import JLD
+import JLD2
 
 """
     partition(params, comm::MPI.Comm)
@@ -15,7 +15,7 @@ import JLD
 Identifies and returns the parameter partitions to be computed by this process and
 the sizes of all partitions on the communicator.
 
-The parameter space is divided linearly and any unbalanced work is assigned to 
+The parameter space is divided linearly and any unbalanced work is assigned to
 the last process `rank == world_size-1`.
 This will result in `length(params) % world_size` additional work items so could
 result in inbalance at large scale.
@@ -28,7 +28,7 @@ function partition(params::Parameters, comm::MPI.Comm)
     world_size = MPI.Comm_size(comm)
 
     partition_size = div(length(params), world_size)
-    
+
     #TODO: Just populate as many nodes as possible?
     @assert partition_size != 0 "Not enough work for the allocated nodes"
 
@@ -62,7 +62,7 @@ Returns the required result for the root_rank and an empty Dict for all others.
 function gather(local_results::Dict{String, T}, partition_sizes::Vector{Int}, root_rank::Int, comm::MPI.Comm;
                 num_qubits = Sys.WORD_SIZE) where {T}
 
-    
+
     # Convert the Dict of results into an Array of Tuples with the amplitude bitstring is parsed to a decimal number
     bitstype_local_results = [parse(Int, p.first; base=2) => p.second for p in collect(local_results)]
 
@@ -80,7 +80,7 @@ function gather(local_results::Dict{String, T}, partition_sizes::Vector{Int}, ro
             MPI.Gatherv!(bitstype_local_results, nothing, root_rank, comm)
         end
     end
-    
+
     results = Dict{String, ComplexF32}()
     if MPI.Comm_rank(comm) == root_rank
         accumulator = DefaultDict{String, T}(T(0))
@@ -131,7 +131,7 @@ function execute(dsl_file::String, param_file::String, input_file::String, outpu
 
     if my_rank == root_rank
         println(results)
-        JLD.save(output_file, "results", results)
+        JLD2.@save output_file results
     end
 
     return results

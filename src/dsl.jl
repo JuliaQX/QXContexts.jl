@@ -16,7 +16,7 @@ export parse_dsl
 export iterate, length
 
 # Define compatible DSL file version number, which must match when parsed.
-const VERSION_DSL = VersionNumber("0.1.0")
+const VERSION_DSL = VersionNumber("0.2.0")
 
 """
 Abstract base type for all DSL commands
@@ -152,31 +152,28 @@ Example
 """
 struct NconCommand <: AbstractCommand
     output_name::Symbol
+    output_idxs::Vector{Int}
     left_name::Symbol
     left_idxs::Vector{Int}
     right_name::Symbol
     right_idxs::Vector{Int}
 end
 
-function NconCommand(output_name::String,
-                        left_name::String, left_idxs::String,
-                        right_name::String, right_idxs::String)
-    left_idxs = parse.(Int, split(left_idxs, ","))
-    right_idxs = parse.(Int, split(right_idxs, ","))
+function NconCommand(output_name::String, output_idxs::String,
+                     left_name::String, left_idxs::String,
+                     right_name::String, right_idxs::String)
+    parse_idxs = x -> [y for y in parse.(Int, split(x, ",")) if y != 0]
 
-    if left_idxs == [0] pop!(left_idxs) end
-    if right_idxs == [0] pop!(right_idxs) end
-
-    NconCommand(Symbol(output_name),
-                Symbol(left_name), left_idxs,
-                Symbol(right_name), right_idxs)
+    NconCommand(Symbol(output_name), parse_idxs(output_idxs),
+                Symbol(left_name), parse_idxs(left_idxs),
+                Symbol(right_name), parse_idxs(right_idxs))
 end
 
 
 """
     ViewCommand(name::String, target::String, bond_index::String, bond_range::String)
 
-Represents a command to 
+Represents a command to
 
 Example
 =======
@@ -235,7 +232,7 @@ const SubstitutionType = Dict{Symbol, String}
 "Regular Expression to find variable tokens within a parametric DSL command"
 const ParametricVariableNameRegex = r"(\$[^\s,_]+)"
 
-apply_substitution(command::AbstractCommand, _::SubstitutionType) = command
+apply_substitution(command::AbstractCommand, ::SubstitutionType) = command
 
 """
     apply_substitution(command::ParametricCommand{T}, substitutions::SubstitutionType) where T <: AbstractCommand
@@ -276,7 +273,7 @@ end
 """
     check_compatible_version_dsl(line::String)
 
-Checks if version is defined in line and checks compatibility with VERSION_DSL 
+Checks if version is defined in line and checks compatibility with VERSION_DSL
 """
 function check_compatible_version_dsl(line::String)
     exists_version_dsl = startswith(strip(line), '#') && occursin("version:", line)
@@ -289,7 +286,8 @@ function check_compatible_version_dsl(line::String)
         # Simple logic enforcing matching versions, which can be extended
         is_compatible = version_dsl == VERSION_DSL
     else
-        version_dsl = VERSION_DSL
+        is_compatible = false
+        version_dsl = nothing
     end
 
     return is_compatible, version_dsl
@@ -347,7 +345,7 @@ function parse_dsl(buffer::Vector{String})
     for line in buffer
         line_command = string(first(split(line, '#')))
         if !isempty(line_command)
-            command = parse_command(line_command, command_types) 
+            command = parse_command(line_command, command_types)
             append!(commands, command)
         end
     end

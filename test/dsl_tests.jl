@@ -15,12 +15,13 @@ end
 @testset "DSL Tests" begin
     @testset "Standard DSL" begin
         command_buffer = Vector{String}([
+            "# version: $(DSL.VERSION_DSL)",
             "load node_1 node_1",
             "save node_27 result",
             "del node_8",
             "reshape node_1 4,1",
             "permute node_1 2,1",
-            "ncon node_22 node_21 1,-1,-2 node_9 1",
+            "ncon node_22 -1,-2 node_21 1,-1,-2 node_9 1",
             "view node_13 node_2 4 0",
         ])
         expected = CommandList([
@@ -29,7 +30,7 @@ end
             DeleteCommand(:node_8),
             ReshapeCommand(:node_1, [[4,1]]),
             PermuteCommand(:node_1, [2,1]),
-            NconCommand(:node_22, :node_21, [1,-1,-2], :node_9, [1]),
+            NconCommand(:node_22, [-1, -2], :node_21, [1,-1,-2], :node_9, [1]),
             ViewCommand(:node_13, :node_2, 4, [0])
         ])
 
@@ -58,6 +59,7 @@ end
 
     @testset "Parametric DSL" begin
         command_buffer = Vector{String}([
+            "# version: $(DSL.VERSION_DSL)",
             "outputs 2",
             "load node_1 node_1",
             "load node_1 \$o1",
@@ -65,7 +67,7 @@ end
             "del node_8",
             "reshape node_1 4,\$v1",
             "permute node_1 \$v2,\$v1",
-            "ncon node_22 \$o2 1,\$v1,-2 \$o3 \$v2",
+            "ncon node_22 -2 \$o2 1,\$v1,-2 \$o3 \$v2",
             "view node_13 node_2 4 \$v2",
         ])
 
@@ -89,7 +91,7 @@ end
             DeleteCommand(:node_8),
             ReshapeCommand(:node_1, [[4,1]]),
             PermuteCommand(:node_1, [2,1]),
-            NconCommand(:node_22, :output_0, [1,1,-2], :output_0, [2]),
+            NconCommand(:node_22, [-2], :output_0, [1,1,-2], :output_0, [2]),
             ViewCommand(:node_13, :node_2, 4, [2])
         ])
 
@@ -121,17 +123,16 @@ end
         end
     end
 
-    @testset "Commented and Versioned DSL" begin
-        version_dsl = VersionNumber("0.1.0")
+    @testset "Commented and Versioned DSL" begin        
         command_buffer = Vector{String}([
-            "# version: $version_dsl",
+            "# version: $(DSL.VERSION_DSL)",
             "load node_1 node_1 # comment 1",
             "save node_27 result",
             "# comment 2",
             "del node_8",
             "reshape node_1 4,1",
             "permute node_1 2,1",
-            "ncon node_22 node_21 1,-1,-2 node_9 1",
+            "ncon node_22 -2 node_21 1,-1,-2 node_9 1",
             "view node_13 node_2 4 0",
             "# comment 3",
         ])
@@ -141,7 +142,7 @@ end
             DeleteCommand(:node_8),
             ReshapeCommand(:node_1, [[4,1]]),
             PermuteCommand(:node_1, [2,1]),
-            NconCommand(:node_22, :node_21, [1,-1,-2], :node_9, [1]),
+            NconCommand(:node_22, [-2], :node_21, [1,-1,-2], :node_9, [1]),
             ViewCommand(:node_13, :node_2, 4, [0])
         ])
 

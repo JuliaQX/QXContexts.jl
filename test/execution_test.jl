@@ -5,7 +5,8 @@ using QXRun.Param
 using QXRun.Execution
 using Test
 
-import JLD
+import JLD2
+import FileIO
 
 function generate_command_list()
     return CommandList([
@@ -29,28 +30,28 @@ function generate_command_list()
         ParametricCommand{ViewCommand}("t880_v3 \$o3 1 \$v3")
         ParametricCommand{ViewCommand}("t874_v2_v3_v4 t874_v2_v3 2 \$v4")
         ParametricCommand{ViewCommand}("t879_v4 \$o2 1 \$v4")
-        ParametricCommand{NconCommand}("t881 t873_v1_v2 -1,1,-2,-3 \$o1 1")
+        ParametricCommand{NconCommand}("t881 -1,-2,-3 t873_v1_v2 -1,1,-2,-3 \$o1 1")
         DeleteCommand(:t873_v1_v2)
         ParametricCommand{DeleteCommand}("\$o1")
-        NconCommand(:t882, :t881, [-1,1,-2], :t876, [1])
+        NconCommand(:t882, [-1, -2], :t881, [-1,1,-2], :t876, [1])
         DeleteCommand(:t881)
         DeleteCommand(:t876)
-        NconCommand(:t883, :t872_v1, [-1,1], :t875, [1])
+        NconCommand(:t883, [-1], :t872_v1, [-1,1], :t875, [1])
         DeleteCommand(:t872_v1)
         DeleteCommand(:t875)
-        NconCommand(:t884, :t874_v2_v3_v4, [-1,-2,1,-3], :t877, [1])
+        NconCommand(:t884, [-1, -2, -3], :t874_v2_v3_v4, [-1,-2,1,-3], :t877, [1])
         DeleteCommand(:t874_v2_v3_v4)
         DeleteCommand(:t877)
-        NconCommand(:t885, :t880_v3, [1], :t879_v4, [-1])
+        NconCommand(:t885, [1, -1], :t880_v3, [1], :t879_v4, [-1])
         DeleteCommand(:t880_v3)
         DeleteCommand(:t879_v4)
-        NconCommand(:t886, :t885, [1,-1], :t882, [-2,-3])
+        NconCommand(:t886, [1, -1, -2, -3], :t885, [1,-1], :t882, [-2,-3])
         DeleteCommand(:t885)
         DeleteCommand(:t882)
-        NconCommand(:t887, :t886, [-1,-2,-3,1], :t883, [1])
+        NconCommand(:t887, [-1, -2, -3], :t886, [-1,-2,-3,1], :t883, [1])
         DeleteCommand(:t886)
         DeleteCommand(:t883)
-        NconCommand(:t888, :t887, [1,2,3], :t884, [1,2,3])
+        NconCommand(:t888, [], :t887, [1,2,3], :t884, [1,2,3])
         DeleteCommand(:t887)
         DeleteCommand(:t884)
         SaveCommand(:t888, :output)
@@ -66,7 +67,7 @@ function generate_parameters()
 end
 
 function generate_input_data_file(fname::String, data::Dict{String, T}) where T
-    JLD.jldopen(fname, "w") do file
+    JLD2.jldopen(fname, "w") do file
         for (label, tensor) in data
             file[label] = tensor
         end
@@ -112,7 +113,7 @@ end
             params = generate_parameters()
 
             ctx = QXContext(cmds, params, input_data_filename, output_data_filename)
-            
+
             # Check default data type
             @test typeof(ctx.data) <: Dict{Symbol, Array{ComplexF32}}
 
@@ -130,7 +131,7 @@ end
                 command = LoadCommand(:node_1, :node_1)
                 execute!(command, local_ctx)
 
-                @test local_ctx.data[:node_1] == test_data["node_1"] 
+                @test local_ctx.data[:node_1] == test_data["node_1"]
             end
 
             @testset "Execute SaveCommand" begin
@@ -139,7 +140,7 @@ end
                 command = SaveCommand(:test, :test_label)
                 execute!(command, local_ctx)
 
-                @test JLD.load(local_ctx.output_file, "test_label") == test_data["test_result"] 
+                @test FileIO.load(local_ctx.output_file, "test_label") == test_data["test_result"]
             end
 
             @testset "Execute DeleteCommand" begin
@@ -173,7 +174,7 @@ end
                 local_ctx = deepcopy(ctx)
                 local_ctx.data[:input_1] = test_data["node_1"]
                 local_ctx.data[:input_2] = test_data["node_2"]
-                command = NconCommand(:result, :input_1, [-1,1], :input_2, [1,-2])
+                command = NconCommand(:result, [-1, -2], :input_1, [-1,1], :input_2, [1,-2])
                 execute!(command, local_ctx)
 
                 @test local_ctx.data[:result] == test_data["node_1"] * test_data["node_2"];
@@ -189,7 +190,7 @@ end
             end
 
         end
-        
+
     finally
         rm(input_data_filename, force=true)
         rm(output_data_filename, force=true)

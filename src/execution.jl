@@ -5,11 +5,13 @@ export execute, partition, gather
 
 using DataStructures
 
-import JLD
+import JLD2
+import FileIO
 import LinearAlgebra
 import TensorOperations
 import QXRun.Logger: @debug
 using TimerOutputs
+using OMEinsum
 using QXRun.DSL
 using QXRun.Param
 
@@ -58,7 +60,7 @@ Execute a load DSL command
 """
 function execute!(cmd::LoadCommand, ctx::QXContext{T}) where {T}
     @timeit_debug timer_output "DSL_load" begin
-        ctx.data[cmd.name] = JLD.load(ctx.input_file, String(cmd.label))
+        ctx.data[cmd.name] = FileIO.load(ctx.input_file, String(cmd.label))
     @debug "Load DSL command: name=$(cmd.name), input_file=$(ctx.input_file), label=$(String(cmd.label))"
     end
     nothing
@@ -71,9 +73,8 @@ Execute a save DSL command
 """
 function execute!(cmd::SaveCommand, ctx::QXContext{T}) where {T}
     @timeit_debug timer_output "DSL_save" begin
-        mode = isfile(ctx.output_file) ? "r+" : "w"
-        JLD.jldopen(ctx.output_file, mode) do file
-            file[String(cmd.label)] = ctx.data[cmd.name]
+        JLD2.jldopen(ctx.output_file, "a+") do file
+            write(file, String(cmd.label), ctx.data[cmd.name])
         end
     @debug "Save DSL command: name=$(cmd.name), output_file=$(ctx.output_file), label=$(String(cmd.label))"
     end
@@ -127,17 +128,14 @@ end
 Execute an ncon DSL command
 """
 function execute!(cmd::NconCommand, ctx::QXContext{T}) where {T}
+    output_idxs = Tuple(cmd.output_idxs)
     left_idxs = Tuple(cmd.left_idxs)
     right_idxs = Tuple(cmd.right_idxs)
 
-    t_symdiff = Tuple(TensorOperations.symdiff(left_idxs, right_idxs))
     @timeit_debug timer_output "DSL_ncon" begin
-        ctx.data[cmd.output_name] = TensorOperations.tensorcontract(
-            ctx.data[cmd.left_name], left_idxs,
-            ctx.data[cmd.right_name], right_idxs,
-            t_symdiff
-        )
-    @debug "ncon DSL command: output_name=$(cmd.output_name), left_idxs=$(left_idxs), right_idxs=$(right_idxs), contract_indices=$(t_symdiff)"
+        @debug "ncon DSL command: output_name=$(cmd.output_name), output_idxs=$(output_idxs), left_idxs=$(left_idxs), right_idxs=$(right_idxs)"
+        @debug "ncon shapes: left_size=$(size(ctx.data[cmd.left_name])), right_size=$(size(ctx.data[cmd.right_name]))"
+        ctx.data[cmd.output_name] = EinCode((left_idxs, right_idxs), output_idxs)(ctx.data[cmd.left_name], ctx.data[cmd.right_name])
     end
     nothing
 end
@@ -179,7 +177,7 @@ Run a given context.
 function execute!(ctx::QXContext{T}) where T
     results = Dict{String, eltype(T)}([k => 0 for k in ctx.params.amplitudes])
 
-    input_file = JLD.jldopen(ctx.input_file, "r")
+    input_file = JLD2.jldopen(ctx.input_file, "r")
 
     split_idx = findfirst(x -> !(x isa LoadCommand) && !(x isa ParametricCommand{LoadCommand}), ctx.cmds)
     # static I/O commands do not depends on any substitutions and can be run
@@ -189,7 +187,7 @@ function execute!(ctx::QXContext{T}) where T
         pred = x -> x isa LoadCommand
         filter(pred, iocmds), filter(!pred, iocmds)
     end
-    cmds = ctx.cmds[split_idx:end] 
+    cmds = ctx.cmds[split_idx:end]
 
     length(parametric_iocmds) != 0 && error("parametric io commands currently unsupported")
 
@@ -215,7 +213,6 @@ function execute!(ctx::QXContext{T}) where T
     for substitution_set in ctx.params
         for substitution in substitution_set
             subbed_cmds = apply_substitution(cmds, substitution)
-
             # Run each of the DSL commands in order
             for cmd in subbed_cmds
                 #TODO: Without checkpointing, etc. the SaveCommand *should* be the last command
@@ -265,7 +262,9 @@ function execute(dsl_file::String, param_file::String, input_file::String, outpu
 
     results = execute!(ctx)
 
-    JLD.save(output_file, "results", results)
+    JLD2.jldopen(output_file, "a+") do io
+        write(io, "results", results)
+    end
 
     return results
 end
