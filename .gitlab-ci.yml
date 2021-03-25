@@ -1,24 +1,21 @@
-.before_script:
-  before_script:
-    - apt update
-    - apt install -y build-essential
-    - which gcc || echo "gcc not found"
+stages:
+  - test
+  - docs
+
 .script:
+  before_script:
+    ##
+    ## Install ssh-agent if not already installed, it is required by Docker.
+    ## (change apt-get to yum if you use an RPM-based image)
+    ##
+    - 'command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client git -y )'
+
   script:
     - |
       julia --project=@. -e '
         using Pkg
         Pkg.build()
         Pkg.test(coverage=true)'
-    - julia --startup-file=no --project=@. --trace-compile=example_precompile.jl bin/rundsl.jl -d examples/ghz/ghz_5.tl -p examples/ghz/ghz_5.yml -i examples/ghz/ghz_5.jld -o out.jld
-    - |
-      julia --startup-file=no --project=@. -e '
-        using Pkg
-        Pkg.add("PackageCompiler")
-        using PackageCompiler;
-        PackageCompiler.create_sysimage([:MPI, :TensorOperations, :QXRun],
-            precompile_statements_file="example_precompile.jl",
-            sysimage_path="qxrun_sysimage.so");'
 .coverage:
   coverage: /Test coverage (\d+\.\d+%)/
   after_script:
@@ -30,17 +27,42 @@
         c, t = get_summary(process_folder())
         using Printf
         @printf "Test coverage %.2f%%\n" 100c / t'
-.artifacts:
-  artifacts:
-    name: qxrun_sysimage.so
-    paths:
-      - qxrun_sysimage.so
+.docs:
+  script:
+    - cd docs/
+    - |
+      julia --project -e '
+        using Pkg
+        Pkg.develop(PackageSpec(path=joinpath(pwd(), "..")))
+        Pkg.instantiate()'
+    - julia --project make.jl
+
+Julia 1.5:
+  stage: test
+  image: julia:1.5
+  tags:
+    - docker
+  extends:
+    - .script
+    - .coverage
+
 Julia 1.6:
+  stage: test
   image: julia:1.6
   tags:
     - docker
   extends:
-    - .before_script
     - .script
     - .coverage
-    - .artifacts
+
+docs:
+  stage: docs
+  image: julia:1.5
+  tags:
+    - docker
+  extends:
+    - .script
+    - .docs
+  artifacts:
+    paths:
+      - docs/build

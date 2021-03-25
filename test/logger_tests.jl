@@ -45,9 +45,9 @@ using MPI
                 @test log_elem[2] == "WARN"
                 @test log_elem[3] == "warn_test"
                 @test log_elem[4] == "-@->"
-                file_line = split(log_elem[5], ":")
-                @test file_line[1] == @__FILE__
-                @test file_line[2] == string(line_num)
+                file_line = splitext(log_elem[5])
+                @test file_line[1] == splitext(@__FILE__)[1]
+                @test split(file_line[2], ":")[2] == string(line_num)
             end
         end
 
@@ -69,9 +69,9 @@ using MPI
                 @test log_elem[2] == "ERROR"
                 @test log_elem[3] == "error_test"
                 @test log_elem[4] == "-@->"
-                file_line = split(log_elem[5], ":")
-                @test file_line[1] == @__FILE__
-                @test file_line[2] == string(line_num)
+                file_line = splitext(log_elem[5])
+                @test file_line[1] == splitext(@__FILE__)[1]
+                @test split(file_line[2], ":")[2] == string(line_num)
             end
         end
     end
@@ -104,9 +104,9 @@ using MPI
                 @test log_elem[2] == "WARN"
                 @test log_elem[3] == "warn_test"
                 @test log_elem[4] == "-@->"
-                file_line = split(log_elem[5], ":")
-                @test file_line[1] == @__FILE__
-                @test file_line[2] == string(line_num)
+                file_line = splitext(log_elem[5])
+                @test file_line[1] == splitext(@__FILE__)[1]
+                @test split(file_line[2], ":")[2] == string(line_num)
             end
         end
 

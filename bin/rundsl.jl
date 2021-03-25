@@ -27,6 +27,9 @@ function parse_commandline(ARGS)
             help = "Output data file path (defaults to input file)"
             required = true
             arg_type = String
+        "--single", "-s"
+            help = "Only run calculation for a single amplitude (useful for testing)"
+            action = :store_true
         "-v"
             help = "Enable verbose output"
             action = :count_invocations
@@ -52,6 +55,7 @@ function main(ARGS)
     parameter_file = args["parameter-file"]
     input_file     = args["input"]
     output_file    = args["output"]
+    single         = args["single"]
     verbose        = args["v"]
 
     results = execute(dsl_file, parameter_file, input_file, output_file, comm)
