@@ -1,0 +1,7 @@
+amplitudes:
+  - "0011110111110000"
+partitions:
+  parameters:
+    v1: 2
+    v2: 2
+    v3: 2

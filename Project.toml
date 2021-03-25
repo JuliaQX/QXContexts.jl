@@ -1,7 +1,7 @@
 name = "QXRun"
 uuid = "04c26001-d4a1-49d2-b090-1d469cf06784"
 authors = ["QuantEx team"]
-version = "0.1.4"
+version = "0.1.5"
 
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"

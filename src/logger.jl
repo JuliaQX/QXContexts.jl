@@ -14,29 +14,30 @@ import Logging: shouldlog, min_enabled_level, catch_exceptions, handle_message
 const PerfLogger = Logging.LogLevel(-125)
 
 struct QXLogger <: Logging.AbstractLogger
-    stream :: IO
-    min_level :: Logging.LogLevel
+    stream::IO
+    min_level::Logging.LogLevel
     message_limits::Dict{Any,Int}
-    show_info_source :: Bool
-    session_id :: UUID
+    show_info_source::Bool
+    session_id::UUID
 end
 
 struct QXLoggerMPIShared <: Logging.AbstractLogger
-    stream :: Union{MPI.FileHandle, Nothing}
-    min_level :: Logging.LogLevel
+    stream::Union{MPI.FileHandle, Nothing}
+    min_level::Logging.LogLevel
     message_limits::Dict{Any,Int}
-    show_info_source :: Bool
-    session_id :: UUID
-    comm ::MPI.Comm
+    show_info_source::Bool
+    session_id::UUID
+    comm::MPI.Comm
 end
 
 struct QXLoggerMPIPerRank <: Logging.AbstractLogger
-    stream :: Union{MPI.FileHandle, Nothing}
-    min_level :: Logging.LogLevel
+    stream::Union{MPI.FileHandle, Nothing}
+    min_level::Logging.LogLevel
     message_limits::Dict{Any,Int}
-    show_info_source :: Bool
-    session_id :: UUID
-    comm ::MPI.Comm
+    show_info_source::Bool
+    session_id::UUID
+    comm::MPI.Comm
+    root_path::String
 end
 
 
@@ -50,11 +51,19 @@ function QXLogger(stream::IO=stdout, level=Logging.Info; show_info_source=false)
 end
 
 """
-    QXLoggerMPIShared(stream::MPI.FileHandle=MPI.File.open(comm, "qxrun_io.dat", read=true,  write=true, create=true), level=Logging.Info; show_info_source=false)
+    QXLoggerMPIShared(stream=nothing,
+                      level=Logging.Info;
+                      show_info_source=false,
+                      comm=MPI.COMM_WORLD,
+                      path::String=".")
 
 MPI-IO enabled logger that outputs to a single shared file for all ranks.
 """
-function QXLoggerMPIShared(stream=nothing, level=Logging.Info; show_info_source=false, comm=MPI.COMM_WORLD)
+function QXLoggerMPIShared(stream=nothing,
+                           level=Logging.Info;
+                           show_info_source=false,
+                           comm=MPI.COMM_WORLD,
+                           path::String=".")
     if MPI.Initialized()
         if MPI.Comm_rank(comm) == 0
             log_uid = uuid4()
@@ -62,7 +71,7 @@ function QXLoggerMPIShared(stream=nothing, level=Logging.Info; show_info_source=
             log_uid = nothing
         end
         log_uid = MPI.bcast(log_uid, 0, comm)
-        f_stream = MPI.File.open(comm, "qxrun_io_shared_$(log_uid).log", read=true,  write=true, create=true)
+        f_stream = MPI.File.open(comm, joinpath(path, "qxrun_io_shared_$(log_uid).log"), read=true,  write=true, create=true)
     else
         error("""MPI is required for this logger. Pleasure ensure MPI is initialised. Use `QXLogger` for non-distributed logging""")
     end
@@ -70,11 +79,19 @@ function QXLoggerMPIShared(stream=nothing, level=Logging.Info; show_info_source=
 end
 
 """
-    QXLoggerMPIPerRank(stream=nothing, level=Logging.Info; show_info_source=false, comm=MPI.COMM_WORLD)
+    QXLoggerMPIPerRank(stream=nothing,
+                       level=Logging.Info;
+                       show_info_source=false,
+                       comm=MPI.COMM_WORLD,
+                       path::String=".")
 
 MPI-friendly logger that outputs to a new file per rank. Creates a UUIDs.uuid4 labelled directory and a per-rank log-file
 """
-function QXLoggerMPIPerRank(stream=nothing, level=Logging.Info; show_info_source=false, comm=MPI.COMM_WORLD)
+function QXLoggerMPIPerRank(stream=nothing,
+                            level=Logging.Info;
+                            show_info_source=false,
+                            comm=MPI.COMM_WORLD,
+                            path::String=".")
     if MPI.Initialized()
         if MPI.Comm_rank(comm) == 0
             log_uid = uuid4()
@@ -85,7 +102,7 @@ function QXLoggerMPIPerRank(stream=nothing, level=Logging.Info; show_info_source
     else
         throw("""MPI is required for this logger. Pleasure ensure MPI is initialised. Use `QXLogger` for non-distributed logging""")
     end
-    return QXLoggerMPIPerRank(stream, level, Dict{Any,Int}(), show_info_source, log_uid, comm)
+    return QXLoggerMPIPerRank(stream, level, Dict{Any,Int}(), show_info_source, log_uid, comm, path)
 end
 
 shouldlog(logger::QXLogger, level, _module, group, id) = get(logger.message_limits, id, 1) > 0
@@ -178,15 +195,15 @@ function handle_message(logger::QXLoggerMPIPerRank, level, message, _module, gro
         remaining > 0 || return nothing
     end
 
-    if !isdir("qxrun_io_" * string(logger.session_id))
-        mkdir("qxrun_io_" * string(logger.session_id))
+    if !isdir(joinpath(logger.root_path, "qxrun_io_" * string(logger.session_id)))
+        mkdir(joinpath(logger.root_path, "qxrun_io_" * string(logger.session_id)))
     end
 
     buf = IOBuffer()
     rank = MPI.Comm_rank(logger.comm)
     level_name = level_to_string(level)
 
-    log_path = joinpath( "qxrun_io_" * string(global_logger().session_id), "rank_$(rank).log")
+    log_path = joinpath(logger.root_path, "qxrun_io_" * string(global_logger().session_id), "rank_$(rank).log")
     file = open(log_path, read=true,  write=true, create=true, append=true)
 
     module_name = something(_module, "nothing")

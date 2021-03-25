@@ -4,7 +4,7 @@ export QXContext, execute!, timer_output, reduce_nodes
 export execute, partition, gather
 
 using DataStructures
-
+import MPI
 import JLD2
 import FileIO
 import LinearAlgebra
@@ -17,7 +17,7 @@ using QXRun.Param
 
 # Import MPI-specific functions
 include("mpi_execution.jl")
-import .MPIExecution: execute, gather, partition
+import .MPIExecution: gather, partition
 
 const timer_output = TimerOutput()
 if haskey(ENV, "QXRUN_TIMER")
@@ -212,7 +212,7 @@ function execute!(ctx::QXContext{T}) where T
     # run command substitution
     for substitution_set in ctx.params
         for substitution in substitution_set
-            subbed_cmds = apply_substitution(cmds, substitution)
+            @timeit_debug timer_output "Perform substitution" subbed_cmds = apply_substitution(cmds, substitution)
             # Run each of the DSL commands in order
             for cmd in subbed_cmds
                 #TODO: Without checkpointing, etc. the SaveCommand *should* be the last command
@@ -243,27 +243,51 @@ function execute!(ctx::QXContext{T}) where T
     return results
 end
 
-
 """
-    execute(dsl_file::String, param_file::String, input_file::String, output_file::String)
-
-Run the commands in dsl_file, parameterised by the contents of param_file, with inputs
-specified in input_file, and save the output(s) to output_file.
+    execute(dsl_file::String,
+            param_file::String,
+            input_file::String,
+            output_file::String,
+            comm::Union{MPI.Comm, Nothing}=nothing)
 """
-function execute(dsl_file::String, param_file::String, input_file::String, output_file::String)
-    if output_file == ""
-        output_file = input_file
+function execute(dsl_file::String,
+                 param_file::String,
+                 input_file::String,
+                 output_file::String,
+                 comm::Union{MPI.Comm, Nothing}=nothing;
+                 max_amplitudes::Union{Int, Nothing}=nothing,
+                 max_parameters::Union{Int, Nothing}=nothing)
+
+    if comm !== nothing
+        root_rank = 0
+        my_rank = MPI.Comm_rank(comm)
+        world_size = MPI.Comm_size(comm)
     end
 
-    commands = parse_dsl(dsl_file)
-    params = Parameters(param_file)
+    if comm === nothing || my_rank == root_rank
+        commands = parse_dsl(dsl_file)
+        params = parse_parameters(param_file,
+                                  max_amplitudes=max_amplitudes, max_parameters=max_parameters)
+    else
+        commands = nothing
+        params = nothing
+    end
+
+    if comm !== nothing
+        commands = MPI.bcast(commands, root_rank, comm)
+        params = MPI.bcast(params, root_rank, comm)
+        params, partition_sizes = partition(params, comm)
+    end
 
     ctx = QXContext(commands, params, input_file, output_file)
-
     results = execute!(ctx)
 
-    JLD2.jldopen(output_file, "a+") do io
-        write(io, "results", results)
+    if comm !== nothing
+        results = gather(results, partition_sizes, root_rank, comm; num_qubits=num_qubits(params))
+    end
+
+    if comm === nothing || my_rank == root_rank
+        JLD2.@save output_file results
     end
 
     return results

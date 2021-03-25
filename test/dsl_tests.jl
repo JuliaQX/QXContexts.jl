@@ -22,7 +22,7 @@ end
             "reshape node_1 4,1",
             "permute node_1 2,1",
             "ncon node_22 -1,-2 node_21 1,-1,-2 node_9 1",
-            "view node_13 node_2 4 0",
+            "view node_13 node_2 4 1",
         ])
         expected = CommandList([
             LoadCommand(:node_1, :node_1),
@@ -31,7 +31,7 @@ end
             ReshapeCommand(:node_1, [[4,1]]),
             PermuteCommand(:node_1, [2,1]),
             NconCommand(:node_22, [-1, -2], :node_21, [1,-1,-2], :node_9, [1]),
-            ViewCommand(:node_13, :node_2, 4, [0])
+            ViewCommand(:node_13, :node_2, 4, 1:1)
         ])
 
         @testset "Parse DSL buffer" begin
@@ -92,7 +92,7 @@ end
             ReshapeCommand(:node_1, [[4,1]]),
             PermuteCommand(:node_1, [2,1]),
             NconCommand(:node_22, [-2], :output_0, [1,1,-2], :output_0, [2]),
-            ViewCommand(:node_13, :node_2, 4, [2])
+            ViewCommand(:node_13, :node_2, 4, 2:2)
         ])
 
         @testset "Parse DSL buffer" begin
@@ -133,7 +133,7 @@ end
             "reshape node_1 4,1",
             "permute node_1 2,1",
             "ncon node_22 -2 node_21 1,-1,-2 node_9 1",
-            "view node_13 node_2 4 0",
+            "view node_13 node_2 4 1",
             "# comment 3",
         ])
         expected = CommandList([
@@ -143,7 +143,7 @@ end
             ReshapeCommand(:node_1, [[4,1]]),
             PermuteCommand(:node_1, [2,1]),
             NconCommand(:node_22, [-2], :node_21, [1,-1,-2], :node_9, [1]),
-            ViewCommand(:node_13, :node_2, 4, [0])
+            ViewCommand(:node_13, :node_2, 4, 1:1)
         ])
 
         @testset "Parse DSL buffer" begin

@@ -183,7 +183,7 @@ end
             @testset "Execute ViewCommand" begin
                 local_ctx = deepcopy(ctx)
                 local_ctx.data[:test] = test_data["test_result"]
-                command = ViewCommand(:view, :test, 2, [1])
+                command = ViewCommand(:view, :test, 2, 1:1)
                 execute!(command, local_ctx)
 
                 @test all(local_ctx.data[:view] .== @view test_data["test_result"][:,1])
