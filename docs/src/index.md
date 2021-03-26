@@ -80,6 +80,23 @@ MPI is used to use multiple processes for computation. The `mpiexecjl` script ca
 mpiexecjl --project -n 4 julia --project bin/rundsl.jl -d examples/ghz/ghz_5.qx -i examples/ghz/ghz_5.jld2 -p examples/ghz/ghz_5.yml -o examples/ghz/out.jld2
 ```
 
+# Building a sysimg using PackageCompiler.jl
+
+To minimise the JIT compilation overhead associated with different tensor contraction paths, it is possible to generate a Julia sysimg with a large number of contraction operations precompiled. See [PackageCompiler.jl documentation]() for further details on package compilation.
+
+To generate a sysimg, we run the following script:
+
+```bash
+julia --project=. bin/sysimg.jl
+```
+
+which will output a dynamic library to be loaded for use with QXRun.jl calls. The sysimg name will be built as `QXRun_<Julia version>_<CPU arch>.<system dynamic library extension>`. For example, on a Skylake AVX512 system running Linux and using Julia 1.6, we generate and use the following:
+
+```bash
+mpiexecjl --project -n 1 julia -J QXRun_JL1.6.0_skylake-AVX512.so ./examples/rqc_example.jl
+```
+
+As we build MPI support into the sysimg, it is important to launch the runtime using the `mpiexecjl` command described earlier.
 # Contributing
 Contributions from users are welcome and we encourage users to open issues and submit merge/pull requests for any problems or feature requests they have. The
 CONTRIBUTING.md on the top level of the source folder has further details of the contribution guidelines.
