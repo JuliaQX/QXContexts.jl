@@ -13,7 +13,7 @@ function compile(sysimage_path = "QXRun_JL$(VERSION)_$(Base.Sys.CPU_NAME).$(Libd
     # Remove unneeded packages
     filter!(x -> x ∉ [:Libdl, :PackageCompiler, :Pkg], used_packages)
 
-    @info "Creating QXRun.jl sysimg"
+    @info "Creating QXRun.jl sysimg: $(sysimage_path)"
     PackageCompiler.create_sysimage(
         used_packages, 
         sysimage_path = sysimage_path, 
@@ -22,8 +22,6 @@ function compile(sysimage_path = "QXRun_JL$(VERSION)_$(Base.Sys.CPU_NAME).$(Libd
     )
 end
 
-
-# If executing as main
 if abspath(PROGRAM_FILE) == @__FILE__
     compile()
 end
