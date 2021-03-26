@@ -27,6 +27,28 @@ using Test
         @test !isequal(ex2, ex6)
     end
 
+    @testset "Test parameter file parsing" begin
+        ex1 = Parameters(["0000", "0001", "1111"], Symbol.(["\$v1","\$v2"]), CartesianIndices((3,2)))
+        ex2 = Parameters(["0000", "0001", "1111"], Symbol.(["\$v2","\$v1"]), CartesianIndices((3,2)))
+        ex3 = Parameters(["0000", "0001", "1111"], Symbol.(["\$v1","\$v2"]), CartesianIndices((2,3)))
+        ex4 = Parameters(["0000", "0001", "1111"], Symbol.(["\$v2","\$v1"]), CartesianIndices((2,3)))
+        ex5 = Parameters(["0001", "0000", "1111"], Symbol.(["\$v1","\$v2"]), CartesianIndices((3,2)))
+        ex6 = Parameters(["0011", "0000", "1111"], Symbol.(["\$v1","\$v2"]), CartesianIndices((3,2)))
+
+        @test isequal(ex1, ex1)
+        @test !isequal(ex1, ex2)
+        @test !isequal(ex1, ex3)
+        @test isequal(ex1, ex4)
+        @test isequal(ex1, ex5)
+        @test !isequal(ex1, ex6)
+
+        @test isequal(ex2, ex2)
+        @test isequal(ex2, ex3)
+        @test !isequal(ex2, ex4)
+        @test !isequal(ex2, ex5)
+        @test !isequal(ex2, ex6)
+    end
+
     @testset "SubstitutionSet isequal overload" begin
         # Baseline dict
         d1 = Dict(
@@ -74,32 +96,31 @@ using Test
         @test !isequal(ex1, ex10)
     end
 
+    mktempdir() do path
+        parameter_file_contents = """
+                                    partitions:
+                                        parameters:
+                                            v1: 2
+                                            v2: 2
+                                    amplitudes:
+                                    - "0000"
+                                    - "0001"
+                                    - "1111"
+                                    """
 
-    parameter_file_contents = """
-partitions:
-    parameters:
-      v1: 2
-      v2: 2
-amplitudes:
-  - "0000"
-  - "0001"
-  - "1111"
-"""
+        expected_parameters = Parameters(
+            ["0000", "0001", "1111"],
+            Symbol.(["\$v1", "\$v2"]),
+            CartesianIndices((2,2))
+        )
 
-    expected_parameters = Parameters(
-        ["0000", "0001", "1111"],
-        Symbol.(["\$v1", "\$v2"]),
-        CartesianIndices((2,2))
-    )
-
-    fname = tempname()
-    try
+        fname = joinpath(path, "foo.yml")
         open(fname, "w") do file
             write(file, parameter_file_contents)
         end
 
         @testset "Parsing Parameter file" begin
-            p = Parameters(fname)
+            p = parse_parameters(fname)
 
             @test length(p) == length(expected_parameters) == 3
             @test size(p) == size(expected_parameters) == (3, 4)
@@ -107,7 +128,6 @@ amplitudes:
 
             @test all(isequal.(collect(p), [x for x in p]))
         end
-
 
         @testset "Generating a SubstitutionSet" begin
             target_amplitude = "0001"
@@ -145,8 +165,6 @@ amplitudes:
 
             @test all(isequal.(collect(substitution_set), [x for x in substitution_set]))
         end
-    finally
-        rm(fname, force=true)
     end
 end
 

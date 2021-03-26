@@ -9,6 +9,29 @@ using QXRun.DSL
 using QXRun.Param
 import JLD2
 
+function _partition(params::Parameters,
+                    world_size::Int,
+                    rank::Int)
+    partition_size = div(length(params), world_size)
+
+    #TODO: Just populate as many nodes as possible?
+    @assert partition_size != 0 "Not enough work for the allocated nodes"
+
+    lower_bounds = [1 + r * partition_size for r in 0:world_size-1]
+    upper_bounds = [lower_bound + partition_size - 1 for lower_bound in lower_bounds]
+
+    if last(upper_bounds) != length(params)
+        upper_bounds[end] = length(params)
+    end
+
+    my_lower_bound = lower_bounds[rank + 1]
+    my_upper_bound = upper_bounds[rank + 1]
+
+    partition_sizes = length.([lb:ub for (lb,ub) in zip(lower_bounds, upper_bounds)])
+
+    params[my_lower_bound:my_upper_bound], partition_sizes
+end
+
 """
     partition(params, comm::MPI.Comm)
 
@@ -23,28 +46,8 @@ Due to this imbalance, it is necessary to return the partition sizes to the call
 so it can decided whether is can call `MPI.Gather` (if all partitions are the same)
 or MPI.Gatherv (if partition sizes differ).
 """
-function partition(params::Parameters, comm::MPI.Comm)
-    my_rank = MPI.Comm_rank(comm)
-    world_size = MPI.Comm_size(comm)
-
-    partition_size = div(length(params), world_size)
-
-    #TODO: Just populate as many nodes as possible?
-    @assert partition_size != 0 "Not enough work for the allocated nodes"
-
-    lower_bounds = [1 + rank * partition_size for rank in 0:world_size-1]
-    upper_bounds = [lower_bound + partition_size - 1 for lower_bound in lower_bounds]
-
-    if last(upper_bounds) != length(params)
-        upper_bounds[end] = length(params)
-    end
-
-    my_lower_bound = lower_bounds[my_rank + 1]
-    my_upper_bound = upper_bounds[my_rank + 1]
-
-    partition_sizes = length.([lb:ub for (lb,ub) in zip(lower_bounds, upper_bounds)])
-
-    params[my_lower_bound:my_upper_bound], partition_sizes
+function partition(params, comm::MPI.Comm)
+    _partition(params, MPI.Comm_size(comm), MPI.Comm_rank(comm))
 end
 
 """
@@ -96,45 +99,5 @@ function gather(local_results::Dict{String, T}, partition_sizes::Vector{Int}, ro
     return results
 end
 
-
-"""
-    execute(dsl_file::String, param_file::String, input_file::String, output_file::String, comm::MPI.Comm)
-
-    Distributed version of `execute`.
-"""
-function execute(dsl_file::String, param_file::String, input_file::String, output_file::String, comm::MPI.Comm)
-    root_rank = 0
-    my_rank = MPI.Comm_rank(comm)
-    world_size = MPI.Comm_size(comm)
-
-    if output_file == ""
-        output_file = input_file
-    end
-
-    if my_rank == root_rank
-        commands = parse_dsl(dsl_file)
-        params = Parameters(param_file)
-    else
-        commands = nothing
-        params = nothing
-    end
-
-    commands = MPI.bcast(commands, root_rank, comm)
-    params = MPI.bcast(params, root_rank, comm)
-
-    local_params, partition_sizes = partition(params, comm)
-
-    ctx = QXContext(commands, local_params, input_file, output_file)
-    local_results = execute!(ctx)
-
-    results = gather(local_results, partition_sizes, root_rank, comm; num_qubits=num_qubits(params))
-
-    if my_rank == root_rank
-        println(results)
-        JLD2.@save output_file results
-    end
-
-    return results
-end
 
 end

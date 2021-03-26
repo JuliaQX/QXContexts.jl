@@ -1,15 +1,22 @@
 module Param
 
-export Parameters, SubstitutionSet, iterate, isequal, getindex, length, size, num_qubits
+export Parameters, SubstitutionSet, num_qubits, parse_parameters
 
 import YAML
+using  DataStructures
+import Base.Iterators: take
 
-export Parameters, SubstitutionSet
-export getindex
-export num_qubits
+"""Struct to represent sets of parameters to use for the simulation"""
+struct Parameters
+    amplitudes::Vector{String}
+    symbols::Vector{Symbol}
+    values::CartesianIndices
+end
 
 """
-    Parameters(filename::String)
+    parse_parameters(filename::String;
+                     max_parameters::Union{Int, Nothing}=nothing,
+                     max_amplitudes::Union{Int, Nothing}=nothing)
 
 Representation of a DSL parameter file containing target amplitudes,
 DSL variable names, and their corresponding values.
@@ -27,24 +34,22 @@ amplitudes:
   - "1111"
 
 """
-struct Parameters
-    amplitudes::Vector{String}
-    symbols::Vector{Symbol}
-    values::CartesianIndices
-end
+function parse_parameters(filename::String;
+                          max_parameters::Union{Int, Nothing}=nothing,
+                          max_amplitudes::Union{Int, Nothing}=nothing)
+    data = YAML.load_file(filename, dicttype=OrderedDict{String, Any})
 
-function Parameters(filename::String)
-    data = YAML.load_file(filename, dicttype=Dict{String, Any})
-    variable_symbols = Vector{Symbol}()
-
+    #TODO: Revise the way amplitudes are described
     amplitudes = unique([amplitude for amplitude in data["amplitudes"]])
-    #TODO: handle regex-y states; e.g. "00**" => ["0000", "0001", "0010", "0011"]
+    if max_amplitudes !== nothing && length(amplitudes) > max_amplitudes
+        amplitudes = amplitudes[1:max_amplitudes]
+    end
 
+    # parse the paramters section of the parameter file
     bond_info = data["partitions"]["parameters"]
-    variable_names = keys(bond_info)
-    variable_values = CartesianIndices(Tuple(values(bond_info)))
-
-    push!(variable_symbols, [Symbol("\$$v") for v in variable_names]...)
+    max_parameters =  max_parameters === nothing ? length(bond_info) : max_parameters
+    variable_symbols = [Symbol("\$$v") for v in take(keys(bond_info), max_parameters)]
+    variable_values = CartesianIndices(Tuple(take(values(bond_info), max_parameters)))
 
     return Parameters(amplitudes, variable_symbols, variable_values)
 end
@@ -68,28 +73,23 @@ function SubstitutionSet(amplitude::String, symbols::Vector{Symbol}, values::Car
     return SubstitutionSet(subs, amplitude, symbols, values)
 end
 
-import Base.length, Base.size
-import Base.getindex
-import Base.iterate
-import Base.isequal
-
 ###############################################################################
 # Parameter type interface
 ###############################################################################
-length(p::Parameters) = length(p.amplitudes)
-size(p::Parameters) = (length(p), length(p.values))
+Base.length(p::Parameters) = length(p.amplitudes)
+Base.size(p::Parameters) = (length(p), length(p.values))
 
 num_qubits(p::Parameters) = maximum(length.(p.amplitudes)) 
 
-function getindex(data::Parameters, amplitude_index::Int)
+function Base.getindex(data::Parameters, amplitude_index::Int)
     return SubstitutionSet(data.amplitudes[amplitude_index], data.symbols, data.values)
 end
 
-function getindex(data::Parameters, range::UnitRange{Int})
+function Base.getindex(data::Parameters, range::UnitRange{Int})
     return Parameters(data.amplitudes[range], data.symbols, data.values)
 end
 
-function getindex(data::Parameters, amplitude::String)
+function Base.getindex(data::Parameters, amplitude::String)
     if !(amplitude in data.amplitudes)
         throw(BoundsError(data, amplitude))
     end
@@ -97,11 +97,11 @@ function getindex(data::Parameters, amplitude::String)
     return data[amplitude_index]
 end
 
-function iterate(p::Parameters, state::Int = 1)
+function Base.iterate(p::Parameters, state::Int = 1)
     state > length(p) ? nothing : (p[state], state + 1)
 end
 
-function isequal(x::Parameters, y::Parameters)
+function Base.isequal(x::Parameters, y::Parameters)
     same_amplitudes = sort(x.amplitudes) == sort(y.amplitudes)
 
     x_idx = sortperm(x.symbols)
@@ -118,10 +118,10 @@ end
 # SubstitutionSet type interface
 ###############################################################################
 
-length(s::SubstitutionSet) = length(s.values)
-size(s::SubstitutionSet) = (length(s),)
+Base.length(s::SubstitutionSet) = length(s.values)
+Base.size(s::SubstitutionSet) = (length(s),)
 
-function getindex(s::SubstitutionSet, index::Int)
+function Base.getindex(s::SubstitutionSet, index::Int)
     if index > length(s.values)
         throw(BoundsError(s, index))
     else
@@ -130,11 +130,11 @@ function getindex(s::SubstitutionSet, index::Int)
     end
 end
 
-function iterate(s::SubstitutionSet, state::Int = 1)
+function Base.iterate(s::SubstitutionSet, state::Int = 1)
     state > length(s.values) ? nothing : (s[state], state + 1)
 end
 
-function isequal(x::SubstitutionSet, y::SubstitutionSet)
+function Base.isequal(x::SubstitutionSet, y::SubstitutionSet)
     same_subs = x.subs == y.subs
 
     same_amplitudes = x.amplitude == y.amplitude

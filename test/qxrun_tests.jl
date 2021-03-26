@@ -15,18 +15,19 @@ using Test
     output_data_file = tempname() * ".jld2"
 
     expected = Dict{String, ComplexF32}(
-        "00111" => 0 + 0im,
-        "10111" => 0 + 0im,
-        "11000" => 0 + 0im,
-        "00111" => 0 + 0im,
-        "00000" => 1/sqrt(2) + 0im,
         "11111" => 1/sqrt(2) + 0im,
+        "11010" => 0 + 0im,
+        "01110" => 0 + 0im,
+        "00110" => 0 + 0im,
+        "10100" => 0 + 0im,
+        "01001" => 0 + 0im
     )
 
     try
         execute(dsl_file, param_file, input_data_file, output_data_file)
-
-        @test expected == FileIO.load(output_data_file, "results")
+        # ensure all dictionary entries match
+        output = FileIO.load(output_data_file, "results")
+        @test all([output[x] ≈ expected[x] for x in keys(output)])
     finally
         rm(output_data_file, force=true)
     end

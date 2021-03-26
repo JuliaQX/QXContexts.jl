@@ -13,7 +13,6 @@ export NconCommand, ViewCommand
 # Functions
 export apply_substitution, apply_substitution!
 export parse_dsl
-export iterate, length
 
 # Define compatible DSL file version number, which must match when parsed.
 const VERSION_DSL = VersionNumber("0.2.0")
@@ -29,15 +28,14 @@ Save tensor:      save <name:str> <hdf5_label:str>
 Delete tensor:    del <name:str>
 Reshape tensor:   reshape <name:str> <shape:list>
 Permute tensor:   permute <name:str> <shape:list>
-Contract tensors: ncon <output_name:str> <left_name:str> <left_idxs:list> <right_name:str> <right_idxs:list>
+Contract tensors: ncon <output_name:str> <output_idxs:list> <left_name:str> <left_idxs:list> <right_name:str> <right_idxs:list>
 View tensor:      view <name:str> <target:str> <bond_idx:Int> <bond_range:list>
 """
 abstract type AbstractCommand end
 
 # Required for `append` in the `parse_dsl` function
-import Base.iterate
+Base.length(::AbstractCommand) = 1
 
-Base.length(x::AbstractCommand) = 1
 Base.iterate(x::T, state::Bool=true) where {T <: AbstractCommand} = state ? (x, false) : nothing
 
 "Abstract base type for parametric DSL commands"
@@ -183,11 +181,18 @@ struct ViewCommand <: AbstractCommand
     name::Symbol
     target::Symbol
     bond_index::Int
-    bond_range::Vector{Int}
+    bond_range::Union{AbstractUnitRange, Colon}
 end
 
 function ViewCommand(name::String, target::String, bond_index::String, bond_range::String)
-    ViewCommand(Symbol(name), Symbol(target), parse(Int, bond_index), parse.(Int, split(bond_range, ",")))
+    if bond_range == "*"
+        bond_range = Colon()
+    else
+        parts = parse.(Int, split(bond_range, ","))
+        @assert length(parts) <= 2
+        bond_range = UnitRange(parts[1]:parts[end])
+    end
+    ViewCommand(Symbol(name), Symbol(target), parse(Int, bond_index), bond_range)
 end
 
 """
@@ -240,8 +245,9 @@ apply_substitution(command::AbstractCommand, ::SubstitutionType) = command
 Find and replace all parameters in a parametric DSL command with the corresponding substitution.
 Will return the appropriate command type; e.g. passing a ParametricCommand{LoadCommand} will return a LoadCommand.
 """
-function apply_substitution(command::ParametricCommand{T}, substitutions::SubstitutionType) where T <: AbstractCommand
-    args = replace(command.args, ParametricVariableNameRegex => x -> substitutions[Symbol(x)])
+function apply_substitution(command::ParametricCommand{T},
+                            substitutions::SubstitutionType) where T <: AbstractCommand
+    args = replace(command.args, ParametricVariableNameRegex => x -> get(substitutions, Symbol(x), "*"))
     return T(string.(split(args, " "))...)
 end
 
