@@ -4,7 +4,7 @@ CurrentModule = QXRun
 
 # QXRun
 
-QXRun is a Julia package for simulating quantum circuits using tensor networking approaches targetting large distibuted memory clusters with hardware
+QXRun is a Julia package for simulating quantum circuits using tensor networking approaches targeting large distributed memory clusters with hardware
 accelerators. It was developed as part of the QuantEx project, one of the individual software projects of WP8 of PRACE 6IP.
 
 QXRun is one of a family of packages each with a different aim. QXRun is the package that is designed to the do the bulk of the computations and makes use of

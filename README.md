@@ -3,12 +3,10 @@
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://JuliaQX.github.io/QXRun.jl/stable)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://JuliaQX.github.io/QXRun.jl/dev)
 [![Build Status](https://github.com/JuliaQX/QXRun.jl/workflows/CI/badge.svg)](https://github.com/JuliaQX/QXRun.jl/actions)
-[![Build Status](https://github.com/JuliaQX/QXRun.jl/badges/master/pipeline.svg)](https://github.com/JuliaQX/QXRun.jl/pipelines)
-[![Coverage](https://github.com/JuliaQX/QXRun.jl/badges/master/coverage.svg)](https://github.com/JuliaQX/QXRun.jl/commits/master)
 [![Coverage](https://codecov.io/gh/JuliaQX/QXRun.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaQX/QXRun.jl)
 
 
-QXRun is a Julia package for simulating quantum circuits using tensor networking approaches targetting large distibuted memory clusters with hardware
+QXRun is a Julia package for simulating quantum circuits using tensor networking approaches targeting large distributed memory clusters with hardware
 accelerators. It was developed as part of the QuantEx project, one of the individual software projects of WP8 of PRACE 6IP.
 
 QXRun is one of a family of packages each with a different aim. QXRun is the package that is designed to the do the bulk of the computations and makes use of
@@ -93,10 +91,10 @@ Contributions from users are welcome and we encourage users to open issues and s
 [CONTRIBUTING.md](CONTRIBUTION.md) has further details of the contribution guidelines.
 
 
-# Building documentatoin
+# Building documentation
 
 QXSim.jl using [Documenter.jl](https://juliadocs.github.io/Documenter.jl/stable/) to generate documentation. To build
-the documentation locally run the following from the toplevel folder.
+the documentation locally run the following from the top-level folder.
 
 The first time it is will be necessary to instantiate the environment to install dependencies
 
@@ -104,7 +102,7 @@ The first time it is will be necessary to instantiate the environment to install
 julia --project=docs 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
 ```
 
-and then to build the documentaton
+and then to build the documentation
 
 ```
 julia --project=docs docs/make.jl
