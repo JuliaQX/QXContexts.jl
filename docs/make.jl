@@ -1,14 +1,14 @@
-using QXRunner
+using QXContexts
 using Documenter
 
 makedocs(;
-    modules=[QXRunner],
+    modules=[QXContexts],
     authors="QuantEx team",
-    repo="https://github.com/JuliaQX/QXRunner.jl/blob/{commit}{path}#L{line}",
-    sitename="QXRunner.jl",
+    repo="https://github.com/JuliaQX/QXContexts.jl/blob/{commit}{path}#L{line}",
+    sitename="QXContexts.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://JuliaQX.github.io/QXRunner.jl",
+        canonical="https://JuliaQX.github.io/QXContexts.jl",
         assets=String[],
     ),
     pages=[
@@ -18,5 +18,5 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/JuliaQX/QXRunner.jl",
+    repo="github.com/JuliaQX/QXContexts.jl",
 )

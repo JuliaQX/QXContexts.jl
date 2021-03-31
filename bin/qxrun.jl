@@ -1,5 +1,5 @@
 using MPI
-using QXRunner
+using QXContexts
 using ArgParse
 
 """
@@ -8,7 +8,7 @@ using ArgParse
 Parse command line arguments and return argument dictionary
 """
 function parse_commandline(ARGS)
-    s = ArgParseSettings("QXRunner")
+    s = ArgParseSettings("QXContexts")
 
     @add_arg_table! s begin
         "--dsl", "-d"
@@ -45,7 +45,7 @@ end
 """
     main(ARGS)
 
-QXRunner entry point
+QXContexts entry point
 """
 function main(ARGS)
     if !MPI.Initialized()

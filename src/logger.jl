@@ -44,7 +44,7 @@ end
 """
     QXLogger(stream::IO=stdout, level=Logging.Info; show_info_source=false)
 
-Single-process logger for QXRunner.
+Single-process logger for QXContexts.
 """
 function QXLogger(stream::IO=stdout, level=Logging.Info; show_info_source=false)
     return QXLogger(stream, level, Dict{Any,Int}(), show_info_source, uuid4())
@@ -71,7 +71,7 @@ function QXLoggerMPIShared(stream=nothing,
             log_uid = nothing
         end
         log_uid = MPI.bcast(log_uid, 0, comm)
-        f_stream = MPI.File.open(comm, joinpath(path, "QXRunner_io_shared_$(log_uid).log"), read=true,  write=true, create=true)
+        f_stream = MPI.File.open(comm, joinpath(path, "QXContexts_io_shared_$(log_uid).log"), read=true,  write=true, create=true)
     else
         error("""MPI is required for this logger. Pleasure ensure MPI is initialised. Use `QXLogger` for non-distributed logging""")
     end
@@ -195,15 +195,15 @@ function handle_message(logger::QXLoggerMPIPerRank, level, message, _module, gro
         remaining > 0 || return nothing
     end
 
-    if !isdir(joinpath(logger.root_path, "QXRunner_io_" * string(logger.session_id)))
-        mkdir(joinpath(logger.root_path, "QXRunner_io_" * string(logger.session_id)))
+    if !isdir(joinpath(logger.root_path, "QXContexts_io_" * string(logger.session_id)))
+        mkdir(joinpath(logger.root_path, "QXContexts_io_" * string(logger.session_id)))
     end
 
     buf = IOBuffer()
     rank = MPI.Comm_rank(logger.comm)
     level_name = level_to_string(level)
 
-    log_path = joinpath(logger.root_path, "QXRunner_io_" * string(global_logger().session_id), "rank_$(rank).log")
+    log_path = joinpath(logger.root_path, "QXContexts_io_" * string(global_logger().session_id), "rank_$(rank).log")
     file = open(log_path, read=true,  write=true, create=true, append=true)
 
     module_name = something(_module, "nothing")

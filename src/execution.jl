@@ -9,11 +9,11 @@ import JLD2
 import FileIO
 import LinearAlgebra
 import TensorOperations
-import QXRunner.Logger: @debug
+import QXContexts.Logger: @debug
 using TimerOutputs
 using OMEinsum
-using QXRunner.DSL
-using QXRunner.Param
+using QXContexts.DSL
+using QXContexts.Param
 
 # Import MPI-specific functions
 include("mpi_execution.jl")
@@ -28,7 +28,7 @@ end
 """
     QXContext(cmds::CommandList, params::Parameters, input_file::String, output_file::String)
 
-A structure to represent and maintain the current state of a QXRunner execution.
+A structure to represent and maintain the current state of a QXContexts execution.
 This structure will hold MPI rank information and is therefore responsible for
 figuring out what segment of the work is its own.
 """

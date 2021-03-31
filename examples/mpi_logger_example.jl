@@ -1,9 +1,9 @@
-using QXRunner
+using QXContexts
 using MPI
 using Logging
 using Random
 
-import QXRunner.Logger: @perf
+import QXContexts.Logger: @perf
 
 MPI.Init()
 comm = MPI.COMM_WORLD
@@ -15,7 +15,7 @@ if MPI.Comm_size(comm) > 1
 else
     io = stdout
 end
-global_logger(QXRunner.Logger.QXLogger(io, Logging.Error, Dict{Any, Int64}(), false))
+global_logger(QXContexts.Logger.QXLogger(io, Logging.Error, Dict{Any, Int64}(), false))
 
 @info "Hello world, I am $(rank) of $(MPI.Comm_size(comm)) world-size"
 @warn "Rank $(rank) doesn't like what you are doing"
