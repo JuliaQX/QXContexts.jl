@@ -1,8 +1,8 @@
-using QXRun
+using QXRunner
 using Test
 using TestSetExtensions
 using Logging
 
-@testset "QXRun.jl" begin
+@testset "QXRunner.jl" begin
     @includetests ARGS
 end

@@ -44,7 +44,7 @@ end
 """
     QXLogger(stream::IO=stdout, level=Logging.Info; show_info_source=false)
 
-Single-process logger for QXRun.
+Single-process logger for QXRunner.
 """
 function QXLogger(stream::IO=stdout, level=Logging.Info; show_info_source=false)
     return QXLogger(stream, level, Dict{Any,Int}(), show_info_source, uuid4())
@@ -71,7 +71,7 @@ function QXLoggerMPIShared(stream=nothing,
             log_uid = nothing
         end
         log_uid = MPI.bcast(log_uid, 0, comm)
-        f_stream = MPI.File.open(comm, joinpath(path, "qxrun_io_shared_$(log_uid).log"), read=true,  write=true, create=true)
+        f_stream = MPI.File.open(comm, joinpath(path, "QXRunner_io_shared_$(log_uid).log"), read=true,  write=true, create=true)
     else
         error("""MPI is required for this logger. Pleasure ensure MPI is initialised. Use `QXLogger` for non-distributed logging""")
     end
@@ -153,7 +153,7 @@ function stamp_builder(rank::Int)
 end
 
 function handle_message(logger::Union{QXLogger, QXLoggerMPIShared}, level, message, _module, group, id,
-                                filepath, line; maxlog = nothing, kwargs...)           
+                                filepath, line; maxlog = nothing, kwargs...)
     if !isnothing(maxlog) && maxlog isa Int
         remaining = get!(logger.message_limits, id, maxlog)
         logger.message_limits[id] = remaining - 1
@@ -176,8 +176,8 @@ function handle_message(logger::Union{QXLogger, QXLoggerMPIShared}, level, messa
         formatted_message *= " -@-> $(filepath):$(line)"
     end
     formatted_message *= "\n"
-    
-    if typeof(logger.stream) <: IO 
+
+    if typeof(logger.stream) <: IO
         write(logger.stream,  formatted_message)
     else
         MPI.File.write_shared(logger.stream, formatted_message)
@@ -195,15 +195,15 @@ function handle_message(logger::QXLoggerMPIPerRank, level, message, _module, gro
         remaining > 0 || return nothing
     end
 
-    if !isdir(joinpath(logger.root_path, "qxrun_io_" * string(logger.session_id)))
-        mkdir(joinpath(logger.root_path, "qxrun_io_" * string(logger.session_id)))
+    if !isdir(joinpath(logger.root_path, "QXRunner_io_" * string(logger.session_id)))
+        mkdir(joinpath(logger.root_path, "QXRunner_io_" * string(logger.session_id)))
     end
 
     buf = IOBuffer()
     rank = MPI.Comm_rank(logger.comm)
     level_name = level_to_string(level)
 
-    log_path = joinpath(logger.root_path, "qxrun_io_" * string(global_logger().session_id), "rank_$(rank).log")
+    log_path = joinpath(logger.root_path, "QXRunner_io_" * string(global_logger().session_id), "rank_$(rank).log")
     file = open(log_path, read=true,  write=true, create=true, append=true)
 
     module_name = something(_module, "nothing")

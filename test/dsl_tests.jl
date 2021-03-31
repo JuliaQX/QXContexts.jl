@@ -1,6 +1,6 @@
 module DSLTests
 
-using QXRun.DSL
+using QXRunner.DSL
 using Test
 
 import Base.isequal
@@ -123,7 +123,7 @@ end
         end
     end
 
-    @testset "Commented and Versioned DSL" begin        
+    @testset "Commented and Versioned DSL" begin
         command_buffer = Vector{String}([
             "# version: $(DSL.VERSION_DSL)",
             "load node_1 node_1 # comment 1",

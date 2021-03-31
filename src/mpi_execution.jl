@@ -4,9 +4,9 @@ export partition, gather, execute
 
 using MPI
 using DataStructures
-using QXRun.Execution
-using QXRun.DSL
-using QXRun.Param
+using QXRunner.Execution
+using QXRunner.DSL
+using QXRunner.Param
 import JLD2
 
 function _partition(params::Parameters,

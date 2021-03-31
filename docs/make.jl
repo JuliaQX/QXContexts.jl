@@ -1,14 +1,14 @@
-using QXRun
+using QXRunner
 using Documenter
 
 makedocs(;
-    modules=[QXRun],
+    modules=[QXRunner],
     authors="QuantEx team",
-    repo="https://github.com/JuliaQX/QXRun.jl/blob/{commit}{path}#L{line}",
-    sitename="QXRun.jl",
+    repo="https://github.com/JuliaQX/QXRunner.jl/blob/{commit}{path}#L{line}",
+    sitename="QXRunner.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://JuliaQX.github.io/QXRun.jl",
+        canonical="https://JuliaQX.github.io/QXRunner.jl",
         assets=String[],
     ),
     pages=[
@@ -18,5 +18,5 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/JuliaQX/QXRun.jl",
+    repo="github.com/JuliaQX/QXRunner.jl",
 )
