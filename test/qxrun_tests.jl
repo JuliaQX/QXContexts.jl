@@ -1,6 +1,6 @@
-module QXRunTests
+module QXContextsTests
 
-using QXRun
+using QXContexts
 using JLD2
 using FileIO
 using Test

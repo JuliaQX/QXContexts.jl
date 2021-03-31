@@ -10,8 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.5'
-          - 'nightly'
+          - '1.6'
         os:
           - ubuntu-latest
           - macOS-latest
@@ -56,8 +55,8 @@ jobs:
       - run: |
           julia --project=docs -e '
             using Documenter: doctest
-            using QXRun
-            doctest(QXRun)'
+            using QXContexts
+            doctest(QXContexts)'
       - run: julia --project=docs docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
