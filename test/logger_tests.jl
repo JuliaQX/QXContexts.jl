@@ -1,7 +1,7 @@
 module LoggerTests
 
 using Logging
-using QXRun.Logger
+using QXRunner.Logger
 using Test
 using Dates
 using MPI
@@ -92,9 +92,9 @@ using MPI
                 line_num = @__LINE__; @warn "warn_test"
 
                 df = DateFormat("[yyyy/mm/dd-HH:MM:SS.sss]");
-                @test isdir(joinpath(path, "qxrun_io_" * string(global_logger().session_id)))
+                @test isdir(joinpath(path, "QXRunner_io_" * string(global_logger().session_id)))
 
-                log = readlines(joinpath(path, "qxrun_io_" * string(global_logger().session_id), "rank_0.log"))
+                log = readlines(joinpath(path, "QXRunner_io_" * string(global_logger().session_id), "rank_0.log"))
 
                 for l in log
                     log_elem = split(l, " ")
