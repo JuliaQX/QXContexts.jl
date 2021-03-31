@@ -2,7 +2,7 @@
 
 import Pkg, Libdl, PackageCompiler
 
-function compile(sysimage_path = "QXRun_JL$(VERSION)_$(Base.Sys.CPU_NAME).$(Libdl.dlext)")
+function compile(sysimage_path = "QXContexts_JL$(VERSION)_$(Base.Sys.CPU_NAME).$(Libdl.dlext)")
 
     env_to_precompile = joinpath(@__DIR__, "..")
     precompile_execution_file = joinpath(@__DIR__, "..", "bin", "tensor_contract_trace_generator.jl")
@@ -13,7 +13,7 @@ function compile(sysimage_path = "QXRun_JL$(VERSION)_$(Base.Sys.CPU_NAME).$(Libd
     # Remove unneeded packages
     filter!(x -> x ∉ [:Libdl, :PackageCompiler, :Pkg], used_packages)
 
-    @info "Creating QXRun.jl sysimg: $(sysimage_path)"
+    @info "Creating QXContexts.jl sysimg: $(sysimage_path)"
     PackageCompiler.create_sysimage(
         used_packages, 
         sysimage_path = sysimage_path, 
