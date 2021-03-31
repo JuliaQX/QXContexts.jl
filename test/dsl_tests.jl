@@ -1,6 +1,6 @@
 module DSLTests
 
-using QXRunner.DSL
+using QXContexts.DSL
 using Test
 
 import Base.isequal

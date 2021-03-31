@@ -1,8 +1,8 @@
 module ExecutionTests
 
-using QXRunner.DSL
-using QXRunner.Param
-using QXRunner.Execution
+using QXContexts.DSL
+using QXContexts.Param
+using QXContexts.Execution
 using Test
 
 import JLD2

@@ -1,6 +1,6 @@
 module ParametersTests
 
-using QXRunner.Param
+using QXContexts.Param
 using Test
 
 @testset "Parameter Tests" begin
