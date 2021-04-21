@@ -1,10 +1,12 @@
-amplitudes:
-  - "01000"
-  - "01110"
-  - "10101"
-  - "10001"
-  - "10010"
-  - "11111"
+output:
+  output_method: list
+  bitstrings:
+    - "11111"
+    - "11010"
+    - "01110"
+    - "00110"
+    - "10100"
+    - "01001"
 partitions:
   parameters:
     v1: 2

@@ -13,9 +13,12 @@ import LinearAlgebra
 import TensorOperations
 import QXContexts.Logger: @debug
 using TimerOutputs
+using Random
 using OMEinsum
 using QXContexts.DSL
 using QXContexts.Param
+using QXContexts.Sampling
+import QXContexts
 
 const timer_output = TimerOutput()
 if haskey(ENV, "QXRUN_TIMER")
