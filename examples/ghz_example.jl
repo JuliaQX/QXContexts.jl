@@ -28,7 +28,7 @@ function main(args)
     input_file     = joinpath(file_path, "ghz/ghz_5.jld2")
     output_file    = joinpath(file_path, "ghz/out.jld2")
 
-    results = QXContexts.execute(dsl_file, parameter_file, input_file, output_file, comm)
+    results = execute(dsl_file, parameter_file, input_file, output_file, comm)
 end
 
 main(ARGS)

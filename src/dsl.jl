@@ -3,19 +3,19 @@ module DSL
 # Types
 export AbstractCommand
 export CommandList
-export ParametricCommand
-export SubstitutionType
+# export ParametricCommand
+# export SubstitutionType
 
 # Standard Commands
 export LoadCommand, SaveCommand, DeleteCommand, ReshapeCommand, PermuteCommand
-export NconCommand, ViewCommand
+export NconCommand, ViewCommand, OutputsCommand
 
 # Functions
-export apply_substitution, apply_substitution!
+# export apply_substitution, apply_substitution!
 export parse_dsl
 
 # Define compatible DSL file version number, which must match when parsed.
-const VERSION_DSL = VersionNumber("0.2.0")
+const VERSION_DSL = VersionNumber("0.3.0")
 
 """
 Abstract base type for all DSL commands
@@ -25,7 +25,6 @@ Abstract base type for all DSL commands
 Generate loads:   outputs <num:str>
 Load tensor:      load <name:str> <hdf5_label:str>
 Save tensor:      save <name:str> <hdf5_label:str>
-Delete tensor:    del <name:str>
 Reshape tensor:   reshape <name:str> <shape:list>
 Permute tensor:   permute <name:str> <shape:list>
 Contract tensors: ncon <output_name:str> <output_idxs:list> <left_name:str> <left_idxs:list> <right_name:str> <right_idxs:list>
@@ -34,14 +33,14 @@ View tensor:      view <name:str> <target:str> <bond_idx:Int> <bond_range:list>
 abstract type AbstractCommand end
 
 # Required for `append` in the `parse_dsl` function
-Base.length(::AbstractCommand) = 1
+# Base.length(::AbstractCommand) = 1
 
-Base.iterate(x::T, state::Bool=true) where {T <: AbstractCommand} = state ? (x, false) : nothing
+# Base.iterate(x::T, state::Bool=true) where {T <: AbstractCommand} = state ? (x, false) : nothing
 
-"Abstract base type for parametric DSL commands"
-struct ParametricCommand{T <: AbstractCommand} <: AbstractCommand
-    args::String
-end
+# "Abstract base type for parametric DSL commands"
+# struct ParametricCommand{T <: AbstractCommand} <: AbstractCommand
+#     args::String
+# end
 
 "Type alias for an array of DSL commands"
 const CommandList = Vector{AbstractCommand}
@@ -64,11 +63,11 @@ struct LoadCommand <: AbstractCommand
     label::Symbol
 end
 
-LoadCommand(name::String, label::String) = LoadCommand(Symbol(name), Symbol(label))
+LoadCommand(name::AbstractString, label::AbstractString) = LoadCommand(Symbol(name), Symbol(label))
 
 
 """
-    SaveCommand(name::String, label::String, filename::String)
+    SaveCommand(name::AbstractString, label::AbstractString, filename::AbstractString)
 
 Represents a command to save a tensor
 
@@ -81,27 +80,10 @@ struct SaveCommand <: AbstractCommand
     label::Symbol
 end
 
-SaveCommand(name::String, label::String) = SaveCommand(Symbol(name), Symbol(label))
-
-
-"""
-    DeleteCommand(name::String)
-
-Represents a command to delete a tensor from memory, freeing resources
-
-Example
-=======
-`del node_1`
-"""
-struct DeleteCommand <: AbstractCommand
-    label::Symbol
-end
-
-DeleteCommand(name::String) = DeleteCommand(Symbol(name))
-
+SaveCommand(name::AbstractString, label::AbstractString) = SaveCommand(Symbol(name), Symbol(label))
 
 """
-    ReshapeCommand(name::String, dims_list::String)
+    ReshapeCommand(name::AbstractString, dims_list::AbstractString)
 
 Represents a command to reshape a tensor
 
@@ -114,14 +96,14 @@ struct ReshapeCommand <: AbstractCommand
     dims::Vector{Vector{Int}}
 end
 
-function ReshapeCommand(name::String, dims_list::String)
+function ReshapeCommand(name::AbstractString, dims_list::AbstractString)
     dims = [parse.(Int, split(x, ",")) for x in split(dims_list, ";")]
     ReshapeCommand(Symbol(name), dims)
 end
 
 
 """
-    PermuteCommand(name::String, dims::String)
+    PermuteCommand(name::AbstractString, dims::AbstractString)
 
 Represents a command to permute a tensor
 
@@ -134,11 +116,11 @@ struct PermuteCommand <: AbstractCommand
     dims::Vector{Int}
 end
 
-PermuteCommand(name::String, dims::String) = PermuteCommand(Symbol(name), parse.(Int, split(dims, ",")))
+PermuteCommand(name::AbstractString, dims::AbstractString) = PermuteCommand(Symbol(name), parse.(Int, split(dims, ",")))
 
 
 """
-    NconCommand(output_name::String,
+    NconCommand(output_name::String, output_idxs::String
                 left_name::String, left_idxs::String,
                 right_name::String, right_idxs::String)
 
@@ -146,7 +128,7 @@ Represents a command to contract two tensors
 
 Example
 =======
-`ncon node_23 node_22 1,-1 node_10 1`
+`ncon node_23 1 node_22 2,1 node_10 2`
 """
 struct NconCommand <: AbstractCommand
     output_name::Symbol
@@ -157,16 +139,15 @@ struct NconCommand <: AbstractCommand
     right_idxs::Vector{Int}
 end
 
-function NconCommand(output_name::String, output_idxs::String,
-                     left_name::String, left_idxs::String,
-                     right_name::String, right_idxs::String)
+function NconCommand(output_name::AbstractString, output_idxs::AbstractString,
+                     left_name::AbstractString, left_idxs::AbstractString,
+                     right_name::AbstractString, right_idxs::AbstractString)
     parse_idxs = x -> [y for y in parse.(Int, split(x, ",")) if y != 0]
 
     NconCommand(Symbol(output_name), parse_idxs(output_idxs),
                 Symbol(left_name), parse_idxs(left_idxs),
                 Symbol(right_name), parse_idxs(right_idxs))
 end
-
 
 """
     ViewCommand(name::String, target::String, bond_index::String, bond_range::String)
@@ -181,95 +162,75 @@ struct ViewCommand <: AbstractCommand
     name::Symbol
     target::Symbol
     bond_index::Int
-    bond_range::Union{AbstractUnitRange, Colon}
+    bond_range::Symbol
 end
 
-function ViewCommand(name::String, target::String, bond_index::String, bond_range::String)
-    if bond_range == "*"
-        bond_range = Colon()
-    else
-        parts = parse.(Int, split(bond_range, ","))
-        @assert length(parts) <= 2
-        bond_range = UnitRange(parts[1]:parts[end])
-    end
-    ViewCommand(Symbol(name), Symbol(target), parse(Int, bond_index), bond_range)
+function ViewCommand(name::AbstractString, target::AbstractString, bond_index::AbstractString, bond_range::AbstractString)
+    ViewCommand(Symbol(name), Symbol(target), parse(Int, bond_index), Symbol(bond_range))
 end
 
 """
     OutputsCommand(num_outputs::String)
 
-Helper function to generate required `LoadCommand`s
+Tells how many outputs to expect
 
 Example
 =======
 `outputs 3`
-
-Generates
-
-```
-load o1_0 output_0
-load o1_1 output_1
-load o2_0 output_0
-load o2_1 output_1
-load o3_0 output_0
-load o3_1 output_1
 ```
 """
 struct OutputsCommand <: AbstractCommand
+    num_outputs::Int64
 end
 
-function OutputsCommand(num_outputs::String)
-    cmds = [
-        [LoadCommand("o$(i)_$j", "output_$j") for j in 0:1]
-        for i in 1:parse(Int, num_outputs)
-    ]
-    collect(Iterators.flatten(cmds))
+function OutputsCommand(num_outputs::AbstractString)
+    OutputsCommand(parse(Int, num_outputs))
 end
 
 
-###############################################################################
-# Parametric DSL substitution functions
-###############################################################################
+# ###############################################################################
+# # Parametric DSL substitution functions
+# ###############################################################################
 
-"Type alias for the representation of parametric DSL substitutions"
-const SubstitutionType = Dict{Symbol, String}
+# "Type alias for the representation of parametric DSL substitutions"
+# const SubstitutionType = Dict{Symbol, String}
 
-"Regular Expression to find variable tokens within a parametric DSL command"
-const ParametricVariableNameRegex = r"(\$[^\s,_]+)"
+# "Regular Expression to find variable tokens within a parametric DSL command"
+# const ParametricVariableNameRegex = r"(\$[^\s,_]+)"
 
-apply_substitution(command::AbstractCommand, ::SubstitutionType) = command
+# apply_substitution(command::AbstractCommand, ::SubstitutionType) = command
 
-"""
-    apply_substitution(command::ParametricCommand{T}, substitutions::SubstitutionType) where T <: AbstractCommand
+# """
+#     apply_substitution(command::ParametricCommand{T}, substitutions::SubstitutionType) where T <: AbstractCommand
 
-Find and replace all parameters in a parametric DSL command with the corresponding substitution.
-Will return the appropriate command type; e.g. passing a ParametricCommand{LoadCommand} will return a LoadCommand.
-"""
-function apply_substitution(command::ParametricCommand{T},
-                            substitutions::SubstitutionType) where T <: AbstractCommand
-    args = replace(command.args, ParametricVariableNameRegex => x -> get(substitutions, Symbol(x), "*"))
-    return T(string.(split(args, " "))...)
-end
+# Find and replace all parameters in a parametric DSL command with the corresponding substitution.
+# Will return the appropriate command type; e.g. passing a ParametricCommand{LoadCommand} will return a LoadCommand.
+# """
+# function apply_substitution(command::ParametricCommand{T},
+#                             substitutions::SubstitutionType) where T <: AbstractCommand
+#     args = replace(command.args, ParametricVariableNameRegex => x -> get(substitutions, Symbol(x), "*"))
+#     return T(string.(split(args, " "))...)
+# end
 
-"""
-    apply_substitution!(commands::CommandList, substitutions::SubstitutionType)
+# """
+#     apply_substitution!(commands::CommandList, substitutions::SubstitutionType)
 
-Apply substitutions to all parametric commands in command list
-"""
-function apply_substitution!(commands::CommandList, substitutions::SubstitutionType)
-    replace!(cmd -> apply_substitution(cmd, substitutions), commands)
-end
+# Apply substitutions to all parametric commands in command list
+# """
+# function apply_substitution!(commands::CommandList, substitutions::SubstitutionType)
+#     replace!(cmd -> apply_substitution(cmd, substitutions), commands)
+# end
 
-"""
-    apply_substitution(commands::CommandList, substitutions::SubstitutionType)
+# """
+#     apply_substitution(commands::CommandList, substitutions::SubstitutionType)
 
-Non-destructively apply substitutions to all parametric commands in command list
-"""
-function apply_substitution(commands::CommandList, substitutions::SubstitutionType)
-    commands_copy = copy(commands)
-    apply_substitution!(commands_copy, substitutions)
-    return commands_copy
-end
+# Non-destructively apply substitutions to all parametric commands in command list
+# """
+# function apply_substitution(commands::CommandList, substitutions::SubstitutionType)
+#     commands_copy = copy(commands)
+#     apply_substitution!(commands_copy, substitutions)
+#     return commands_copy
+# end
 
 
 ###############################################################################
@@ -300,24 +261,28 @@ function check_compatible_version_dsl(line::String)
 end
 
 """
-    parse_command(line::String, command_types::Base.ImmutableDict)
+    parse_command(line::String)
 
 Parse a DSL command
 """
-function parse_command(line::String, command_types::Base.ImmutableDict)
+function parse_command(line::String)
     if any(!isascii, line)
         # This may not be an issue but err on the side of caution for now
         throw(ArgumentError("Non-ascii DSL commands not supported:\n\t'$line'"))
     end
 
-    type, args = string.(split(strip(line), " "; limit = 2))
+    type, args... = split(line)
+    args = string.(args)
 
-    if occursin("\$", line)
-        #command = parametric_command_types[type](args)
-        command = ParametricCommand{command_types[type]}(args)
+    if type == "load" command = LoadCommand(args...)
+    elseif type == "view" command = ViewCommand(args...)
+    elseif type == "ncon" command = NconCommand(args...)
+    elseif type == "save" command = SaveCommand(args...)
+    elseif type == "outputs" command = OutputsCommand(args...)
+    # elseif type == "reshape" command = ReshapeCommand(args...)
+    # elseif type == "permute" command = PermuteCommand(args...)
     else
-        args = string.(split(args, " "))
-        command = command_types[type](args...)
+        error("$(type) command has not been implemented yet")
     end
 
     return command
@@ -331,17 +296,6 @@ Parse a list of DSL commands and generate a CommandList for execution
 function parse_dsl(buffer::Vector{String})
     commands = CommandList()
 
-    command_types = Base.ImmutableDict(
-        "load"    => LoadCommand,
-        "save"    => SaveCommand,
-        "del"     => DeleteCommand,
-        "reshape" => ReshapeCommand,
-        "permute" => PermuteCommand,
-        "ncon"    => NconCommand,
-        "view"    => ViewCommand,
-        "outputs" => OutputsCommand,
-    )
-
     line = string(strip(first(buffer)))
     is_compatible, version_dsl = check_compatible_version_dsl(line)
     if !is_compatible
@@ -351,8 +305,8 @@ function parse_dsl(buffer::Vector{String})
     for line in buffer
         line_command = string(first(split(line, '#')))
         if !isempty(line_command)
-            command = parse_command(line_command, command_types)
-            append!(commands, command)
+            command = parse_command(line_command)
+            push!(commands, command)
         end
     end
 
