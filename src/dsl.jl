@@ -3,15 +3,12 @@ module DSL
 # Types
 export AbstractCommand
 export CommandList
-# export ParametricCommand
-# export SubstitutionType
 
 # Standard Commands
 export LoadCommand, SaveCommand, DeleteCommand, ReshapeCommand, PermuteCommand
 export NconCommand, ViewCommand, OutputsCommand
 
 # Functions
-# export apply_substitution, apply_substitution!
 export parse_dsl
 
 # Define compatible DSL file version number, which must match when parsed.
@@ -31,16 +28,6 @@ Contract tensors: ncon <output_name:str> <output_idxs:list> <left_name:str> <lef
 View tensor:      view <name:str> <target:str> <bond_idx:Int> <bond_range:list>
 """
 abstract type AbstractCommand end
-
-# Required for `append` in the `parse_dsl` function
-# Base.length(::AbstractCommand) = 1
-
-# Base.iterate(x::T, state::Bool=true) where {T <: AbstractCommand} = state ? (x, false) : nothing
-
-# "Abstract base type for parametric DSL commands"
-# struct ParametricCommand{T <: AbstractCommand} <: AbstractCommand
-#     args::String
-# end
 
 "Type alias for an array of DSL commands"
 const CommandList = Vector{AbstractCommand}
@@ -162,11 +149,11 @@ struct ViewCommand <: AbstractCommand
     name::Symbol
     target::Symbol
     bond_index::Int
-    bond_range::Symbol
+    slice_sym::Symbol
 end
 
-function ViewCommand(name::AbstractString, target::AbstractString, bond_index::AbstractString, bond_range::AbstractString)
-    ViewCommand(Symbol(name), Symbol(target), parse(Int, bond_index), Symbol(bond_range))
+function ViewCommand(name::AbstractString, target::AbstractString, bond_index::AbstractString, slice_sym::AbstractString)
+    ViewCommand(Symbol(name), Symbol(target), parse(Int, bond_index), Symbol(slice_sym))
 end
 
 """
@@ -186,52 +173,6 @@ end
 function OutputsCommand(num_outputs::AbstractString)
     OutputsCommand(parse(Int, num_outputs))
 end
-
-
-# ###############################################################################
-# # Parametric DSL substitution functions
-# ###############################################################################
-
-# "Type alias for the representation of parametric DSL substitutions"
-# const SubstitutionType = Dict{Symbol, String}
-
-# "Regular Expression to find variable tokens within a parametric DSL command"
-# const ParametricVariableNameRegex = r"(\$[^\s,_]+)"
-
-# apply_substitution(command::AbstractCommand, ::SubstitutionType) = command
-
-# """
-#     apply_substitution(command::ParametricCommand{T}, substitutions::SubstitutionType) where T <: AbstractCommand
-
-# Find and replace all parameters in a parametric DSL command with the corresponding substitution.
-# Will return the appropriate command type; e.g. passing a ParametricCommand{LoadCommand} will return a LoadCommand.
-# """
-# function apply_substitution(command::ParametricCommand{T},
-#                             substitutions::SubstitutionType) where T <: AbstractCommand
-#     args = replace(command.args, ParametricVariableNameRegex => x -> get(substitutions, Symbol(x), "*"))
-#     return T(string.(split(args, " "))...)
-# end
-
-# """
-#     apply_substitution!(commands::CommandList, substitutions::SubstitutionType)
-
-# Apply substitutions to all parametric commands in command list
-# """
-# function apply_substitution!(commands::CommandList, substitutions::SubstitutionType)
-#     replace!(cmd -> apply_substitution(cmd, substitutions), commands)
-# end
-
-# """
-#     apply_substitution(commands::CommandList, substitutions::SubstitutionType)
-
-# Non-destructively apply substitutions to all parametric commands in command list
-# """
-# function apply_substitution(commands::CommandList, substitutions::SubstitutionType)
-#     commands_copy = copy(commands)
-#     apply_substitution!(commands_copy, substitutions)
-#     return commands_copy
-# end
-
 
 ###############################################################################
 # DSL Parsing functions
