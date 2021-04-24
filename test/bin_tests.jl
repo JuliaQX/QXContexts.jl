@@ -1,19 +1,20 @@
 module TestCLI
 using Test
 using FileIO
+using DataStructures
 
 # include source of bin file here to avoid world age issues
 include("../bin/qxrun.jl")
 
 @testset "Test prepare rqc input cli script" begin
-    ghz_results = Dict{String, ComplexF32}(
-            "11111" => 1/sqrt(2) + 0im,
-            "11010" => 0 + 0im,
-            "01110" => 0 + 0im,
-            "00110" => 0 + 0im,
-            "10100" => 0 + 0im,
-            "01001" => 0 + 0im
-        )
+    ghz_results = OrderedDict{String, ComplexF32}(
+        "01000" => 0 + 0im,
+        "01110" => 0 + 0im,
+        "10101" => 0 + 0im,
+        "10001" => 0 + 0im,
+        "10010" => 0 + 0im,
+        "11111" => 1/sqrt(2) + 0im,
+    )
     ghz_example_dir = joinpath(dirname(@__DIR__), "examples", "ghz")
     dsl_input = joinpath(ghz_example_dir, "ghz_5.qx")
     # create empty temporary directory
@@ -24,7 +25,8 @@ include("../bin/qxrun.jl")
         main(args)
         @test isfile(output_fname)
         output = load(output_fname, "results")
-        @test all([output[x] ≈ ghz_results[x] for x in keys(output)])
+        expected = collect(values(ghz_results))
+        @test output ≈ expected
     end
 
     mktempdir() do path
@@ -35,7 +37,8 @@ include("../bin/qxrun.jl")
         main(args)
         @test isfile(output_fname)
         output = load(output_fname, "results")
-        @test all([output[x] ≈ ghz_results[x] for x in ["11111"]])
+        expected = [ghz_results["01000"]]
+        @test output ≈ expected
     end
 
     mktempdir() do path
@@ -47,7 +50,8 @@ include("../bin/qxrun.jl")
         main(args)
         @test isfile(output_fname)
         output = load(output_fname, "results")
-        @test all([output[x] ≈ ghz_results[x] for x in ["11111", "11010"]])
+        expected = [ghz_results["01000"], ghz_results["01110"]]
+        @test output ≈ expected
     end
 
 end

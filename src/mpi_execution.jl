@@ -54,8 +54,8 @@ function QXMPIContext(ctx::QXContext{T}, comm::MPI.Comm, sub_comm_size::Int=1) w
     QXMPIContext{T}(ctx, comm, sub_comm, root_comm)
 end
 
-set_open_bonds(ctx::QXMPIContext, args...) = set_open_bonds(ctx.serial_ctx, args...)
-set_slice_vals(ctx::QXMPIContext, args...) = set_slice_vals(ctx.serial_ctx, args...)
+set_open_bonds!(ctx::QXMPIContext, args...) = set_open_bonds!(ctx.serial_ctx, args...)
+set_slice_vals!(ctx::QXMPIContext, args...) = set_slice_vals!(ctx.serial_ctx, args...)
 
 function SliceIterator(ctx::QXMPIContext)
     serial_iter = SliceIterator(ctx.serial_ctx)
@@ -97,3 +97,5 @@ end
 function write_results(ctx::QXMPIContext, results, output_file)
     if MPI.Comm_rank(ctx.comm) == 0 JLD2.@save output_file results end
 end
+
+Base.zero(::QXMPIContext{T}) where T = zero(eltype(T))

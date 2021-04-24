@@ -220,8 +220,8 @@ function parse_command(line::String)
     elseif type == "ncon" command = NconCommand(args...)
     elseif type == "save" command = SaveCommand(args...)
     elseif type == "outputs" command = OutputsCommand(args...)
-    # elseif type == "reshape" command = ReshapeCommand(args...)
-    # elseif type == "permute" command = PermuteCommand(args...)
+    elseif type == "reshape" command = ReshapeCommand(args...)
+    elseif type == "permute" command = PermuteCommand(args...)
     else
         error("$(type) command has not been implemented yet")
     end

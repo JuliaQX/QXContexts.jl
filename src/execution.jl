@@ -1,8 +1,9 @@
 module Execution
 
 export QXContext, execute!, timer_output, reduce_nodes
-export execute, partition, gather
-export set_output_bitstring, set_partition_parameters
+export execute
+export set_open_bonds!, set_slice_vals!
+export compute_amplitude!
 
 using DataStructures
 import MPI
@@ -39,8 +40,7 @@ end
 function QXContext(::Type{T},
                    cmds::CommandList,
                    partition_dims::OrderedDict{Symbol, Int},
-                   input_file::String,
-                   output_file::String) where {T <: AbstractArray}
+                   input_file::String) where {T <: AbstractArray}
     # find the outputs command to get number of outputs
     num_open_bonds = cmds[findfirst(x -> x isa OutputsCommand, cmds)].num_outputs
     open_bonds = [Symbol("o$i") for i = 1:num_open_bonds]
@@ -66,12 +66,11 @@ end
 
 function QXContext(cmds::CommandList,
                    partition_dims::OrderedDict{Symbol, Int},
-                   input_file::String,
-                   output_file::String)
-    QXContext(Array{ComplexF32}, cmds, partition_dims, input_file, output_file)
+                   input_file::String)
+    QXContext(Array{ComplexF32}, cmds, partition_dims, input_file)
 end
 
-function set_open_bonds(ctx::QXContext{T}, bitstring::String) where {T <: AbstractArray}
+function set_open_bonds!(ctx::QXContext{T}, bitstring::String) where {T <: AbstractArray}
     for (i, bond) in enumerate(ctx.open_bonds)
         if bitstring[i] == '0'
             ctx.data[bond] = convert(T, [1,0])
@@ -83,7 +82,7 @@ function set_open_bonds(ctx::QXContext{T}, bitstring::String) where {T <: Abstra
     end
 end
 
-function set_slice_vals(ctx::QXContext, slice_values::Vector{Int})
+function set_slice_vals!(ctx::QXContext, slice_values::Vector{Int})
     ctx.slice_vals[:] = slice_values
 end
 
@@ -116,6 +115,8 @@ BitstringIterator(::QXContext, bitstrings) = bitstrings
 function write_results(::QXContext, results, output_file)
     JLD2.@save output_file results
 end
+
+Base.zero(::QXContext{T}) where T = zero(eltype(T))
 
 ###############################################################################
 # Individual command execution functions
@@ -211,6 +212,16 @@ function execute!(ctx::QXContext)
     ctx.data[:output][]
 end
 
+function compute_amplitude!(ctx, bitstring::String)
+    set_open_bonds!(ctx, bitstring)
+    amplitude = zero(ctx)
+    for p in SliceIterator(ctx)
+        set_slice_vals!(ctx, p)
+        amplitude += execute!(ctx)
+    end
+    reduce_slices(ctx, amplitude)
+end
+
 include("mpi_execution.jl")
 
 """
@@ -234,7 +245,7 @@ function execute(dsl_file::String,
     bitstrings, partition_params = parse_parameters(param_file,
                                                     max_amplitudes=max_amplitudes, max_parameters=max_parameters)
 
-    ctx = QXContext(commands, partition_params, input_file, output_file)
+    ctx = QXContext(commands, partition_params, input_file)
     if comm !== nothing
         ctx = QXMPIContext(ctx, comm, sub_comm_size)
     end
@@ -242,13 +253,7 @@ function execute(dsl_file::String,
     bitstring_iter = BitstringIterator(ctx, bitstrings)
     results = Array{ComplexF32, 1}(undef, length(bitstring_iter))
     for (i, bitstring) in enumerate(bitstring_iter)
-        set_open_bonds(ctx, bitstring)
-        amplitude = ComplexF32(0)
-        for p in SliceIterator(ctx)
-            set_slice_vals(ctx, p)
-            amplitude += execute!(ctx)
-        end
-        results[i] = reduce_slices(ctx, amplitude)
+        results[i] = compute_amplitude!(ctx, bitstring)
     end
     results = reduce_amplitudes(ctx, results)
 
