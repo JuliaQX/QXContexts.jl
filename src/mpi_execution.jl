@@ -1,103 +1,139 @@
-module MPIExecution
+"""
+General utility functions for working with MPI and partitions
+"""
 
-export partition, gather, execute
+export get_rank_size
+export get_rank_start
 
-using MPI
-using DataStructures
-using QXContexts.Execution
-using QXContexts.DSL
-using QXContexts.Param
-import JLD2
+"""
+    get_rank_size(n::Integer, size::Integer, rank::Integer)
 
-function _partition(params::Parameters,
-                    world_size::Int,
-                    rank::Int)
-    partition_size = div(length(params), world_size)
-
-    #TODO: Just populate as many nodes as possible?
-    @assert partition_size != 0 "Not enough work for the allocated nodes"
-
-    lower_bounds = [1 + r * partition_size for r in 0:world_size-1]
-    upper_bounds = [lower_bound + partition_size - 1 for lower_bound in lower_bounds]
-
-    if last(upper_bounds) != length(params)
-        upper_bounds[end] = length(params)
-    end
-
-    my_lower_bound = lower_bounds[rank + 1]
-    my_upper_bound = upper_bounds[rank + 1]
-
-    partition_sizes = length.([lb:ub for (lb,ub) in zip(lower_bounds, upper_bounds)])
-
-    params[my_lower_bound:my_upper_bound], partition_sizes
+Partition n items among processes of communicator of size size and return the size of the
+given rank. Algorithm used is to:
+1. Divide items equally among processes
+2. Spread remainder over ranks in ascending order of rank number
+"""
+function get_rank_size(n::Integer, size::Integer, rank::Integer)
+    (n ÷ size) + ((n % size) >= (rank + 1))
 end
 
 """
-    partition(params, comm::MPI.Comm)
+    get_rank_start(n::Integer, size::Integer, rank::Integer)
 
-Identifies and returns the parameter partitions to be computed by this process and
-the sizes of all partitions on the communicator.
-
-The parameter space is divided linearly and any unbalanced work is assigned to
-the last process `rank == world_size-1`.
-This will result in `length(params) % world_size` additional work items so could
-result in inbalance at large scale.
-Due to this imbalance, it is necessary to return the partition sizes to the caller
-so it can decided whether is can call `MPI.Gather` (if all partitions are the same)
-or MPI.Gatherv (if partition sizes differ).
+Partition n items among processes of communicator of size size and return the starting of the
+given rank. Algorithm used is to:
+1. Divide items equally among processes
+2. Spread remainder over ranks in ascending order of rank number
 """
-function partition(params, comm::MPI.Comm)
-    _partition(params, MPI.Comm_size(comm), MPI.Comm_rank(comm))
+function get_rank_start(n::Integer, size::Integer, rank::Integer)
+    start = rank * (n ÷ size) + 1
+    start + min(rank, n % size)
 end
 
 """
-    gather(local_results::Dict{String, T}, partition_sizes::Vector{Int}, root_rank::Int, comm::MPI.Comm;
-           num_qubits = Sys.WORD_SIZE) where {T}
+    get_rank_range(n::Integer, size::Integer, rank::Integer)
 
-Gathers the results from all workers to produce a single Dict containing the probabilities
-of all sampled amplitudes.
-Probabilities of the same amplitudes computed on different ranks are summed.
-
-This is required as `Dict`s with `String` keys may not be passed to MPI routines.
-
-Returns the required result for the root_rank and an empty Dict for all others.
+Partition n items among processes of communicator of size size and return a range over these
+indices.
 """
-function gather(local_results::Dict{String, T}, partition_sizes::Vector{Int}, root_rank::Int, comm::MPI.Comm;
-                num_qubits = Sys.WORD_SIZE) where {T}
+function get_rank_range(n::Integer, size::Integer, rank::Integer)
+    start = get_rank_start(n, size, rank)
+    UnitRange(start, start + get_rank_size(n, size, rank) - 1)
+end
 
+"""
+MPI context which can be used to perform distribted computations
+"""
+struct QXMPIContext
+    serial_ctx::QXContext
+    comm::MPI.Comm # communicator containing all ranks
+    sub_comm::MPI.Comm # communicator containing ranks in subgroup used for partitions
+    root_comm::MPI.Comm # communicator containing root rank from each subgroup
+end
 
-    # Convert the Dict of results into an Array of Tuples with the amplitude bitstring is parsed to a decimal number
-    bitstype_local_results = [parse(Int, p.first; base=2) => p.second for p in collect(local_results)]
+"""
+    QXMPIContext(ctx::QXContext, comm::MPI.Comm, sub_comm_size::Int=1)
 
-    # Check if all the partition_sizes are the same and call the correct gather function as required
-    #
-    # The current implementation offloads additional work to the last rank so check that first for a
-    # quick result. This approach maintains generality if the definition of partition_sizes changes.
-    if (all(x -> x==last(partition_sizes), partition_sizes))
-        gathered_results = MPI.Gather(bitstype_local_results, root_rank, comm)
+Constructor for QXMPIContext that initialises new sub-communicators for managing groups
+of nodes.
+"""
+function QXMPIContext(ctx::QXContext, comm::MPI.Comm, sub_comm_size::Int=1)
+    @assert MPI.Comm_size(comm) % sub_comm_size == 0 "sub_comm_size must divide comm size evenly"
+    sub_comm = MPI.Comm_split(comm, MPI.Comm_rank(comm) ÷ sub_comm_size, MPI.Comm_rank(comm) % sub_comm_size)
+    root_comm = MPI.Comm_split(comm, MPI.Comm_rank(comm) % sub_comm_size, MPI.Comm_rank(comm) ÷ sub_comm_size)
+    QXMPIContext(ctx, comm, sub_comm, root_comm)
+end
+
+"""Implementes set_open_bonds! for QXMPIContexts"""
+set_open_bonds!(ctx::QXMPIContext, args...) = set_open_bonds!(ctx.serial_ctx, args...)
+"""Implementes set_slice_vals! for QXMPIContexts"""
+set_slice_vals!(ctx::QXMPIContext, args...) = set_slice_vals!(ctx.serial_ctx, args...)
+
+"""
+    SliceIterator(ctx::QXMPIContext)
+
+Function which creates a SliceIterator given a QXMPIContext structure
+"""
+function SliceIterator(ctx::QXMPIContext)
+    serial_iter = SliceIterator(ctx.serial_ctx)
+    total_length = length(serial_iter)
+    args = (total_length,
+            MPI.Comm_size(ctx.sub_comm),
+            MPI.Comm_rank(ctx.sub_comm))
+    SliceIterator(ctx.serial_ctx.slice_dims,
+                  get_rank_start(args...),
+                  get_rank_start(args...) + get_rank_size(args...) - 1
+    )
+end
+
+"""
+    reduce_slices(ctx::QXMPIContext, a)
+
+Function to sum amplitude contributions
+"""
+function reduce_slices(ctx::QXMPIContext, a)
+    total = MPI.Reduce(a, MPI.SUM, 0, ctx.sub_comm)
+    if MPI.Comm_rank(ctx.sub_comm) == 0
+        return total
     else
-        if MPI.Comm_rank(comm) == root_rank
-            gathered_results = similar(bitstype_local_results, sum(partition_sizes))
-            MPI.Gatherv!(bitstype_local_results, VBuffer(gathered_results, partition_sizes), root_rank, comm)
-        else
-            MPI.Gatherv!(bitstype_local_results, nothing, root_rank, comm)
-        end
+        return a
     end
-
-    results = Dict{String, ComplexF32}()
-    if MPI.Comm_rank(comm) == root_rank
-        accumulator = DefaultDict{String, T}(T(0))
-
-        for (amplitude, probability) in gathered_results
-            amplitude_str = last(bitstring(amplitude), num_qubits)
-            accumulator[amplitude_str] += probability
-        end
-
-        merge!(results, accumulator)
-    end
-
-    return results
 end
 
+"""
+    reduce_amplitudes(ctx::QXMPIContext, a)
 
+Function to gather amplitudes from sub-communicators
+"""
+function reduce_amplitudes(ctx::QXMPIContext, a)
+    if MPI.Comm_rank(ctx.sub_comm) == 0
+        return MPI.Gather(a, 0, ctx.root_comm)
+    end
 end
+
+"""
+    BitstringIterator(ctx::QXMPIContext, bitstrings)
+
+Create a bitstring iterator for a QXMPIContext from a global bitstring iterator
+"""
+function BitstringIterator(ctx::QXMPIContext, bitstrings)
+    total_length = length(bitstrings)
+    args = (total_length, MPI.Comm_size(ctx.root_comm), MPI.Comm_rank(ctx.root_comm))
+    bitstrings[get_rank_range(args...)]
+end
+
+"""Implement execute! for QXMPIContext"""
+function execute!(ctx::QXMPIContext)
+    execute!(ctx.serial_ctx)
+end
+
+"""
+    write_results(ctx::QXMPIContext, results, output_file)
+
+Function write results for QXMPIContext. Only writes from root process
+"""
+function write_results(ctx::QXMPIContext, results, output_file)
+    if MPI.Comm_rank(ctx.comm) == 0 JLD2.@save output_file results end
+end
+
+Base.zero(ctx::QXMPIContext) = zero(ctx.serial_ctx)

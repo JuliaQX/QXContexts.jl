@@ -1,13 +1,13 @@
-# version: 0.2.0
+# version: 0.3.0
 # Determination of contraction plan :
-#   Method used : quickbb
-#   Time allocated : 120
-#   Ordering used : min_fill
-#   Lower bound flag used : false
+#   Method used : flow cutter
+#   Time allocated : 10
+#   Seed used : -1
 #   Returned metadata :
-#     treewidth : 2
-#     is_optimal : true
-#     time : 0.000219
+#     1 : c min degree heuristic
+#     2 : c status 3 1618934162317
+#     3 : c min shortcut heuristic
+#     4 : c run with 0.0/0.1/0.2 min balance and node_min_expansion in endless loop with varying seed
 #   Hypergraph used : true
 #   Hyperedge contraction method : Netcon where possible, min fill heuristic otherwise.
 # Slicing :
@@ -30,74 +30,30 @@ load t11 data_4
 load t12 data_4
 load t13 data_4
 load t14 data_4
-view t6_$v1 t6 1 $v1
-del t6
-view t9_$v1 t9 1 $v1
-del t9
-view t8_$v1 t8 3 $v1
-del t8
-view $o4_$v1 $o4 1 $v1
-del $o4
-view t4_$v2 t4 3 $v2
-del t4
-view t5_$v2 t5 1 $v2
-del t5
-view t2_$v2 t2 1 $v2
-del t2
-view $o2_$v2 $o2 1 $v2
-del $o2
-ncon I1 1,3 t4_$v2 1,2,3 t12 2
-del t4_$v2
-del t12
-ncon I2 1,3 t6_$v1 1,2,3 t13 2
-del t6_$v1
-del t13
-ncon I3 2,3 t8_$v1 1,2,3 $o5 1
-del t8_$v1
-del $o5
-ncon I4 2 I3 1,2 t14 1
-del I3
-del t14
-ncon I5 1 t1 1,2 t10 2
-del t1
-del t10
-ncon I6 1,3 t2_$v2 1,2,3 t11 2
-del t2_$v2
-del t11
-ncon t20 1 $o1 1 t3 1
-del $o1
-del t3
-ncon t21 1 I5 1 t20 1
-del I5
-del t20
-ncon t22 1 I6 1,2 t21 2
-del I6
-del t21
-ncon t23 1 $o3 1 t7 1
-del $o3
-del t7
-ncon t24 1,2 I2 1,2 t23 2
-del I2
-del t23
-ncon t25 2,3 I1 1,2 t24 3,1
-del I1
-del t24
-ncon t26 2 t9_$v1 2 $o4_$v1 2
-del t9_$v1
-del $o4_$v1
-ncon t27 1,3 t26 1 t5_$v2 3
-del t26
-del t5_$v2
-ncon t28 1,4 t27 1,4 $o2_$v2 4
-del t27
-del $o2_$v2
-ncon t29 1,3 t28 1,3 I4 1
-del t28
-del I4
-ncon t30 1,3 t29 1,3 t22 3
-del t29
-del t22
-ncon t31 0 t30 1,2 t25 2,1
-del t30
-del t25
+view t8_s t8 3 v1
+view t9_s t9 1 v1
+view o4_s o4 1 v1
+view t6_s t6 1 v1
+view o2_s o2 1 v2
+view t5_s t5 1 v2
+view t4_s t4 3 v2
+view t2_s t2 1 v2
+ncon t26 2 t9_s 2 o4_s 2
+ncon t27 1,3 t26 1 o2_s 3
+ncon t28 1,3 t27 1,3 t5_s 3
+ncon I1 2,3 t8_s 1,2,3 o5 1
+ncon I2 2 I1 1,2 t14 1
+ncon t29 1,3 t28 1,3 I2 1
+ncon I4 1,3 t4_s 1,2,3 t12 2
+ncon I3 1,3 t6_s 1,2,3 t13 2
+ncon t20 1 o3 1 t7 1
+ncon t21 1,2 I3 1,2 t20 2
+ncon t22 2,3 I4 1,2 t21 3,1
+ncon t30 2 t29 1,2 t22 2,1
+ncon I6 1,3 t2_s 1,2,3 t11 2
+ncon I7 1 t1 1,2 t10 2
+ncon t23 1 o1 1 t3 1
+ncon t24 1 I7 1 t23 1
+ncon t25 1 I6 1,2 t24 2
+ncon t31 0 t30 1 t25 1
 save t31 output
