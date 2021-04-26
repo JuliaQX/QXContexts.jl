@@ -8,7 +8,7 @@ QXContexts is a Julia package for simulating quantum circuits using tensor netwo
 accelerators. It was developed as part of the QuantEx project, one of the individual software projects of WP8 of PRACE 6IP.
 
 QXContexts is one of a family of packages each with a different aim. QXContexts is the package that is designed to the do the bulk of the computations and makes use of
-distributed compute resources via [MPI.jl](https://github.com/JuliaParallel/MPI.jl) as well as hardware accelerators. [OMEinsum.jl](https://github.com/under-Peter/OMEinsum.jl) and [TensorOperations.jl](https://github.com/Jutho/TensorOperations.jl) are currently used to carry out the tensor contractions.
+distributed compute resources via [MPI.jl](https://github.com/JuliaParallel/MPI.jl) as well as hardware accelerators. [OMEinsum.jl](https://github.com/under-Peter/OMEinsum.jl) and [TensorOperations.jl](https://github.com/Jutho/TensorOperations.jl) are currently used to carry out the tensor contraction operations.
 
 # Installation
 
@@ -40,6 +40,14 @@ where the `-d`, `-i` and `-p` switches describe the DSL file, input data file an
 
 ```
 julia --project bin/qxrun.jl -d examples/ghz/ghz_5.qx -o examples/ghz/out.jld2
+```
+
+The output is written to a [JLD2](https://github.com/JuliaIO/JLD2.jl) file. A small utility
+script called `examine_output.jl` is provided that allows examination of this output which
+can be used as
+
+```
+julia --project bin/examing_output.jl examples/ghz/out.jld2
 ```
 
 ## Enable timing
@@ -78,11 +86,23 @@ global_logger(QXContexts.Logger.QXLoggerMPIPerRank())
 
 # Running with MPI
 
-MPI is used to use multiple processes for computation. The `mpiexecjl` script can be used to launch julia on multiple processes. See [MPI.jl documentation](https://juliaparallel.github.io/MPI.jl/latest/configuration/#Julia-wrapper-for-mpiexec) for details on how to set this up. For example to run the above example with 4 processes one would use the following:
+MPI is used to use multiple processes for computation. The `mpiexecjl` script can be used to launch Julia on multiple processes. See [MPI.jl documentation](https://juliaparallel.github.io/MPI.jl/latest/configuration/#Julia-wrapper-for-mpiexec) for details on how to set this up. For example to run the above example with 4 processes one would use the following:
 
 ```
 mpiexecjl --project -n 4 julia --project bin/qxrun.jl -d examples/ghz/ghz_5.qx -o examples/ghz/out.jld2
 ```
+
+In this case the amplitudes that are to be calculated are split between the processes. For
+larger cases where many partitions are used for each amplitude it can be useful to split
+this calculation over many processes also. The `--sub-communicator-size` (or `-m`) option
+can be used to specify the size of sub-communicators to use for each amplitude. For example
+
+```
+mpiexecjl --project -n 4 julia --project bin/qxrun.jl -d examples/ghz/ghz_5.qx -o examples/ghz/out.jld2 -m 2
+```
+
+Here the four processes are split between two communicators, each with two processes.
+
 
 # Contributing
 Contributions from users are welcome and we encourage users to open issues and submit merge/pull requests for any problems or feature requests they have. The
