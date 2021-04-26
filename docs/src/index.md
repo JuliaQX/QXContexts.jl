@@ -89,7 +89,7 @@ global_logger(QXContexts.Logger.QXLoggerMPIPerRank())
 MPI is used to use multiple processes for computation. The `mpiexecjl` script can be used to launch Julia on multiple processes. See [MPI.jl documentation](https://juliaparallel.github.io/MPI.jl/latest/configuration/#Julia-wrapper-for-mpiexec) for details on how to set this up. For example to run the above example with 4 processes one would use the following:
 
 ```
-mpiexecjl --project -n 4 julia --project bin/qxrun.jl -d examples/ghz/ghz_5.qx -o examples/ghz/out.jld2
+mpiexecjl --project -n 4 julia bin/qxrun.jl -d examples/ghz/ghz_5.qx -o examples/ghz/out.jld2
 ```
 
 In this case the amplitudes that are to be calculated are split between the processes. For
@@ -98,7 +98,7 @@ this calculation over many processes also. The `--sub-communicator-size` (or `-m
 can be used to specify the size of sub-communicators to use for each amplitude. For example
 
 ```
-mpiexecjl --project -n 4 julia --project bin/qxrun.jl -d examples/ghz/ghz_5.qx -o examples/ghz/out.jld2 -m 2
+mpiexecjl --project -n 4 julia bin/qxrun.jl -d examples/ghz/ghz_5.qx -o examples/ghz/out.jld2 -m 2
 ```
 
 Here the four processes are split between two communicators, each with two processes.
