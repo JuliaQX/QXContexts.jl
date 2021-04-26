@@ -42,7 +42,7 @@ This will have a different suffix depending on the platform (`.so` for Linux sys
 To use the system image the `--sysimage` (`-J` for short) can be used providing the path to the system image. For example
 
 ```
-julis --project --sysimage=QXContexts_JL1.6.1_skylake.so
+julis --project --sysimage=JuliaSysimage.so
 ```
 
 # Example usage

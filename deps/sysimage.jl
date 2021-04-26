@@ -2,7 +2,7 @@
 
 import Pkg, Libdl, PackageCompiler
 
-function compile(sysimage_path = "QXContexts_JL$(VERSION)_$(Base.Sys.CPU_NAME).$(Libdl.dlext)")
+function compile(sysimage_path = "JuliaSysimage.$(Libdl.dlext)")
     env_to_precompile = joinpath(@__DIR__, "..")
     precompile_execution_file = joinpath(@__DIR__, "precompile.jl")
     project_filename = joinpath(env_to_precompile, "Project.toml")
