@@ -24,9 +24,8 @@ if haskey(ENV, "QXRUN_TIMER")
 end
 
 """
-    QXContext(cmds::CommandList, input_file::String, output_file::String)
-
-A structure to represent and maintain the current state of a QXContexts execution.
+Context in which to perform contractions and other tesnor manipulation operations. Also
+manages storage for tensor operations.
 """
 struct QXContext{T}
     open_bonds::Vector{Symbol}
@@ -37,6 +36,14 @@ struct QXContext{T}
     data::Dict{Symbol, T}
 end
 
+"""
+    QXContext(::Type{T},
+              cmds::CommandList,
+              partition_dims::OrderedDict{Symbol, Int},
+              input_file::String) where {T <: AbstractArray})
+
+Constructor for QXContext which loads data and prepares context for processing
+"""
 function QXContext(::Type{T},
                    cmds::CommandList,
                    partition_dims::OrderedDict{Symbol, Int},
@@ -64,12 +71,19 @@ function QXContext(::Type{T},
     QXContext{T}(open_bonds, slice_syms, slice_dims, slice_vals, cmds, data)
 end
 
+"""Sets default datatype to ComplexF32"""
 function QXContext(cmds::CommandList,
                    partition_dims::OrderedDict{Symbol, Int},
                    input_file::String)
     QXContext(Array{ComplexF32}, cmds, partition_dims, input_file)
 end
 
+"""
+    set_open_bonds!(ctx::QXContext{T}, bitstring::String) where {T <: AbstractArray}
+
+Given a bitstring, set the open bonds to values so contracting the network will
+calculate the amplitude of this bitstring
+"""
 function set_open_bonds!(ctx::QXContext{T}, bitstring::String) where {T <: AbstractArray}
     for (i, bond) in enumerate(ctx.open_bonds)
         if bitstring[i] == '0'
@@ -82,40 +96,72 @@ function set_open_bonds!(ctx::QXContext{T}, bitstring::String) where {T <: Abstr
     end
 end
 
+"""
+    set_slice_vals!(ctx::QXContext, slice_values::Vector{Int})
+
+For each bond that is being sliced set the dimension to slice on.
+"""
 function set_slice_vals!(ctx::QXContext, slice_values::Vector{Int})
     ctx.slice_vals[:] = slice_values
 end
 
+"""
+Data structure that implements iterator interface for iterating over multi-dimensional
+objects with configurable start and end points.
+"""
 struct SliceIterator
     iter::CartesianIndices
     start::Int
     stop::Int
 end
 
-function SliceIterator(ctx::QXContext)
-    SliceIterator(ctx.slice_dims)
-end
+"""
+    SliceIterator(dims::Vector{Int}, start::Int=1, stop::Int=-1)
 
+Constructor for slice iterator which takes dimensions as argument
+"""
 function SliceIterator(dims::Vector{Int}, start::Int=1, stop::Int=-1)
     iter = CartesianIndices(Tuple(dims))
     if stop == -1 stop = length(iter) end
     SliceIterator(iter, start, stop)
 end
 
-Base.iterate(a::SliceIterator) = length(a) == 0 ? nothing : ([Tuple(a.iter[a.start])...], a.start)
-Base.iterate(a::SliceIterator, state) = length(a) <= (state + 1 - a.start) ? nothing : ([Tuple(a.iter[state + 1])...], state + 1)
+"""
+    SliceIterator(dims::Vector{Int}, start::Int=1, stop::Int=-1)
+
+Data structure that implements iterator interface for iterating over multi-dimensional
+objects with configurable start and end points.
+"""
+SliceIterator(ctx::QXContext, args...) = SliceIterator(ctx.slice_dims, args...)
+
+"""Implement require iterator interface functions"""
+Base.iterate(a::SliceIterator) = length(a) == 0 ? nothing : (Int[Tuple(a.iter[a.start])...], a.start)
+Base.iterate(a::SliceIterator, state) = length(a) <= (state + 1 - a.start) ? nothing : (Int[Tuple(a.iter[state + 1])...], state + 1)
 Base.length(a::SliceIterator) = a.stop - a.start + 1
 Base.eltype(::SliceIterator) = Vector{Int}
 
+"""Function for reducing over amplitude contributions from each slice. For non-serial
+contexts, contributions are summed over"""
 reduce_slices(::QXContext, a) = a
+
+"""Function for reducing over calculated amplitudes. For non-serial contexts, contributions
+are gathered"""
 reduce_amplitudes(::QXContext, a) = a
 
+"""Function for reducing over calculated amplitudes. For non-serial contexts, contributions
+are gathered"""
 BitstringIterator(::QXContext, bitstrings) = bitstrings
 
+"""
+    write_results(::QXContext, results, output_file)
+
+Save results from calculations for the given
+"""
 function write_results(::QXContext, results, output_file)
     JLD2.@save output_file results
 end
 
+"""Function to create a scalar with zero value of appropriate data-type for given contexct"""
 Base.zero(::QXContext{T}) where T = zero(eltype(T))
 
 ###############################################################################
@@ -129,9 +175,6 @@ Execute a save DSL command
 """
 function execute!(cmd::SaveCommand, ctx::QXContext{T}) where {T}
     @timeit_debug timer_output "DSL_save" begin
-        # JLD2.jldopen(ctx.output_file, "a+") do file
-            # write(file, String(cmd.label), ctx.data[cmd.name])
-        # end
         ctx.data[cmd.label] = ctx.data[cmd.name]
     @debug "Save DSL command: name=$(cmd.name), label=$(String(cmd.label))"
     end
@@ -205,6 +248,11 @@ function execute!(cmd::ViewCommand, ctx::QXContext{T}) where {T}
     nothing
 end
 
+"""
+    execute!(ctx::QXContext)
+
+Execute all commands for given context
+"""
 function execute!(ctx::QXContext)
     for cmd in ctx.cmds
         execute!(cmd, ctx)
@@ -212,6 +260,12 @@ function execute!(ctx::QXContext)
     ctx.data[:output][]
 end
 
+"""
+    compute_amplitude!(ctx, bitstring::String)
+
+Calculate a single amplitude with the given context and bitstring. Involves a sum over
+contributions from each slice.
+"""
 function compute_amplitude!(ctx, bitstring::String)
     set_open_bonds!(ctx, bitstring)
     amplitude = zero(ctx)
@@ -229,7 +283,13 @@ include("mpi_execution.jl")
             param_file::String,
             input_file::String,
             output_file::String,
-            comm::Union{MPI.Comm, Nothing}=nothing)
+            comm::Union{MPI.Comm, Nothing}=nothing;
+            sub_comm_size::Int=1,
+            max_amplitudes::Union{Int, Nothing}=nothing,
+            max_parameters::Union{Int, Nothing}=nothing)
+
+Main entry point for running calculations. Loads input data, runs computations and
+writes results to output files.
 """
 function execute(dsl_file::String,
                  param_file::String,
@@ -261,6 +321,5 @@ function execute(dsl_file::String,
 
     return results
 end
-
 
 end

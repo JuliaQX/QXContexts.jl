@@ -5,7 +5,7 @@ export AbstractCommand
 export CommandList
 
 # Standard Commands
-export LoadCommand, SaveCommand, DeleteCommand, ReshapeCommand, PermuteCommand
+export LoadCommand, SaveCommand, ReshapeCommand, PermuteCommand
 export NconCommand, ViewCommand, OutputsCommand
 
 # Functions
