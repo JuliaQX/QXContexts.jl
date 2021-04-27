@@ -5,44 +5,57 @@ export construct_sampler, accept!
 
 using Random
 using DataStructures
-import Base.iterate
-
-
-abstract type AbstractSampler end
-
 
 """
-Struct to hold the results of contraction and output sampling.
+Struct to hold the results of a simulation.
 """
 struct Samples{T}
     bitstrings::DefaultDict{String, Int}
     amplitudes::Dict{String, T}
 end
 
-Samples() = Samples(DefaultDict{String, Int}(0), Dict{String, ComplexF64}())
+Samples() = Samples(DefaultDict{String, Int}(0), Dict{String, ComplexF32}())
 
+"""Abstract type for samplers"""
+abstract type AbstractSampler end
 
 ###############################################################################
 # ListSampler
 ###############################################################################
 
 """
-A Sampler struct to compute the amplitudes of a list of bitstrings.
+A Sampler struct to compute the amplitudes for a list of bitstrings.
 """
 struct ListSampler <: AbstractSampler
     list::Vector{String}
-    ListSampler(params) = new(params["bitstrings"])
+    num_amplitudes::Int64
 end
 
-
-iterate(sampler::ListSampler) = (sampler.list, nothing)
-iterate(sampler::ListSampler, ::Nothing) = nothing
-
-
-function accept!(results::Samples, ::ListSampler, bitstring_batch::Vector{String})
-    for bitstring in bitstring_batch
-        results.bitstrings[bitstring] += 1
+function ListSampler(params)
+    if haskey(params, "num_samples")
+        num_amplitudes = params["num_samples"]
+        num_amplitudes = min(num_amplitudes, length(params["bitstrings"]))
+    else
+        num_amplitudes = length(params["bitstrings"])
     end
+    ListSampler(params["bitstrings"], num_amplitudes)
+end
+
+"""Iterator interface functions for ListSampler"""
+Base.iterate(sampler::ListSampler) = (first(sampler.list), 1)
+
+function Base.iterate(sampler::ListSampler, ind::Integer)
+    ind < sampler.num_amplitudes || (return nothing) 
+    (sampler.list[ind+1], ind+1)
+end
+
+"""
+    accept!(results::Samples{T}, ::ListSampler, bitstring::String) where T<:Complex
+
+Does nothing as a ListSampler is not for collecting samples.
+"""
+function accept!(::Samples{T}, ::ListSampler, ::String) where T<:Complex
+    nothing
 end
 
 ###############################################################################
@@ -70,30 +83,34 @@ function RejectionSampler(params)
     RejectionSampler(num_qubits, num_samples, 0, M, fix_M, rng)
 end
 
+"""Iterator interface functions for RejectionSampler"""
+Base.iterate(sampler::RejectionSampler, ::Nothing) = iterate(sampler)
 
-function iterate(sampler::RejectionSampler)
-    num_amps = sampler.num_samples - sampler.accepted
-    if num_amps > 0
-        return [prod(rand(sampler.rng, ["0", "1"], sampler.num_qubits)) for _ in 1:(num_amps)], nothing
-    else
+function Base.iterate(sampler::RejectionSampler)
+    if sampler.accepted >= sampler.num_samples
         return nothing
+    else
+        return prod(rand(sampler.rng, ["0", "1"], sampler.num_qubits)), nothing
     end
 end
 
-iterate(sampler::RejectionSampler, ::Nothing) = iterate(sampler)
+"""
+    accept!(results::Samples{T}, sampler::RejectionSampler, bitstring::String) where T<:Complex
 
+Accept or reject the given bitstring as a sample using the rejection method and update 
+`results` accordingly.
+"""
+function accept!(results::Samples{T}, sampler::RejectionSampler, bitstring::String) where T<:Complex
+    # Get the amplitude for the given bitstring and the parameters for the rejection method.
+    amp = results.amplitudes[bitstring]
+    Np = 2^sampler.num_qubits * abs(amp)^2
+    sampler.fix_M && (sampler.M = max(Np, sampler.M))
 
-function accept!(results::Samples, sampler::RejectionSampler, bitstring_batch::Vector{String})
-    for bitstring in bitstring_batch
-        amp = results.amplitudes[bitstring]
-        Np = 2^sampler.num_qubits * abs(amp)^2
-        sampler.fix_M && (sampler.M = max(Np, sampler.M))
-
-        u = rand(sampler.rng)
-        if u < Np / sampler.M
-            sampler.accepted += 1
-            results.bitstrings[bitstring] += 1
-        end
+    # Accept the given bitstring as a sample with probability Np/M.
+    u = rand(sampler.rng)
+    if u < Np / sampler.M
+        sampler.accepted += 1
+        results.bitstrings[bitstring] += 1
     end
 end
 
@@ -107,49 +124,52 @@ A Sampler struct to uniformly sample bitstrings and compute their amplitudes.
 mutable struct UniformSampler <: AbstractSampler
     num_qubits::Int64
     num_samples::Int64
-    batch_size::Int64
-    total_batches::Int64
     rng::MersenneTwister
 end
 
 function UniformSampler(params)
     num_qubits = params["num_qubits"]
     num_samples = params["num_samples"]
-    batch_size = params["batch_size"]
-    total_batches = params["total_batches"]
     rng = MersenneTwister(params["seed"])
-    UniformSampler(num_qubits, num_samples, batch_size, total_batches, rng)
+    UniformSampler(num_qubits, num_samples, rng)
 end
 
+"""Iterator interface functions for UniformSampler"""
+Base.iterate(sampler::UniformSampler) = iterate(sampler, 0)
 
-function iterate(sampler::UniformSampler)
-    if sampler.total_batches * sampler.batch_size < sampler.num_samples
-        sampler.total_batches += 1
-        return [prod(rand(sampler.rng, ["0", "1"], sampler.num_qubits)) for _ in 1:(sampler.batch_size)], nothing
+function Base.iterate(sampler::UniformSampler, samples_produced::Integer)
+    if samples_produced < sampler.num_samples
+        new_bitstring = prod(rand(sampler.rng, ["0", "1"], sampler.num_qubits))
+        return new_bitstring, samples_produced + 1
     else
         return nothing
     end
 end
 
-iterate(sampler::UniformSampler, ::Nothing) = iterate(sampler)
+"""
+    accept!(results::Samples{T}, ::UniformSampler, bitstring::String) where T<:Complex
 
-
-function accept!(results::Samples, ::UniformSampler, bitstring_batch::Vector{String})
-    for bitstring in bitstring_batch
-        results.bitstrings[bitstring] += 1
-    end
+Accept the given bitstring as a sample and update `results` accordingly.
+"""
+function accept!(results::Samples{T}, ::UniformSampler, bitstring::String) where T<:Complex
+    results.bitstrings[bitstring] += 1
 end
 
 ###############################################################################
 # Sampler Constructor
 ###############################################################################
 
-
 CONSTRUCTORS = Base.ImmutableDict(
     "rejection" => RejectionSampler,
+    "uniform" => UniformSampler,
     "list" => ListSampler
 )
 
+"""
+    construct_sampler(params)
+
+Returns a sampler whose type is specified in `params`.
+"""
 function construct_sampler(params)
     CONSTRUCTORS[params["output_method"]](params)
 end

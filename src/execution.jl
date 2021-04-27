@@ -151,6 +151,8 @@ reduce_slices(::QXContext, a) = a
 are gathered"""
 reduce_amplitudes(::QXContext, a) = a
 
+reduce_results(::QXContext, results::Samples) = results
+
 """Function for reducing over calculated amplitudes. For non-serial contexts, contributions
 are gathered"""
 BitstringIterator(::QXContext, bitstrings) = bitstrings
@@ -161,7 +163,9 @@ BitstringIterator(::QXContext, bitstrings) = bitstrings
 Save results from calculations for the given
 """
 function write_results(::QXContext, results, output_file)
-    JLD2.@save output_file results
+    amplitudes = results.amplitudes
+    bitstrings = results.bitstrings
+    JLD2.@save output_file amplitudes bitstrings
 end
 
 """Function to create a scalar with zero value of appropriate data-type for given contexct"""
@@ -269,7 +273,7 @@ end
 Calculate a single amplitude with the given context and bitstring. Involves a sum over
 contributions from each slice.
 """
-function compute_amplitude!(ctx, bitstring::String)
+function compute_amplitude!(ctx, bitstring::String) where T<:Complex
     set_open_bonds!(ctx, bitstring)
     amplitude = zero(ctx)
     for p in SliceIterator(ctx)
@@ -277,6 +281,18 @@ function compute_amplitude!(ctx, bitstring::String)
         amplitude += execute!(ctx)
     end
     reduce_slices(ctx, amplitude)
+end
+
+"""
+    compute_amplitude!(results::Samples{T}, ctx, bitstring::String) where T<:Complex
+
+Calculate a single amplitude with the given context and bitstring. Update `results` to hold
+the new amplitude.
+"""
+function compute_amplitude!(results::Samples{T}, ctx, bitstring::String) where T<:Complex
+    if !haskey(results.amplitudes, bitstring)
+        results.amplitudes[bitstring] = compute_amplitude!(ctx, bitstring)
+    end
 end
 
 include("mpi_execution.jl")
@@ -302,26 +318,31 @@ function execute(dsl_file::String,
                  sub_comm_size::Int=1,
                  max_amplitudes::Union{Int, Nothing}=nothing,
                  max_parameters::Union{Int, Nothing}=nothing)
-
+    # Parse the dsl file to create a list of commands to execute in a context. Also parse
+    # the parameter file to get partition parameters and to create a sampler object to 
+    # produce bitstrings to compute amplitudes for.
     commands = parse_dsl(dsl_file)
+    sampler, partition_params = parse_parameters(param_file,
+                                                max_amplitudes=max_amplitudes, 
+                                                max_parameters=max_parameters)
 
-    bitstrings, partition_params = parse_parameters(param_file,
-                                                    max_amplitudes=max_amplitudes, max_parameters=max_parameters)
-
+    # Create a context to execute the commands in and a variable to sgtore the results.
     ctx = QXContext(commands, partition_params, input_file)
     if comm !== nothing
         ctx = QXMPIContext(ctx, comm, sub_comm_size)
     end
+    results = Samples()
 
-    bitstring_iter = BitstringIterator(ctx, bitstrings)
-    results = Array{ComplexF32, 1}(undef, length(bitstring_iter))
-    for (i, bitstring) in enumerate(bitstring_iter)
-        results[i] = compute_amplitude!(ctx, bitstring)
+    # For each bitstring produced by the sampler, compute its amplitude and accept or reject
+    # it as sample in accordance with the sampler.
+    for bitstring in sampler
+        compute_amplitude!(results, ctx, bitstring)
+        accept!(results, sampler, bitstring)
     end
-    results = reduce_amplitudes(ctx, results)
 
+    # Collect, save and return the results.
+    results = reduce_results(ctx, results)
     write_results(ctx, results, output_file)
-
     return results
 end
 

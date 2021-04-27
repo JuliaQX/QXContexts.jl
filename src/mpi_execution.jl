@@ -111,6 +111,27 @@ function reduce_amplitudes(ctx::QXMPIContext, a)
     end
 end
 
+function reduce_results(ctx::QXMPIContext, results::Samples)
+    if MPI.Comm_rank(ctx.sub_comm) == 0
+        bitstrings = keys(results.amplitudes)
+        num_qubits = length(first(bitstrings))
+
+        bits = parse.(UInt64, bitstrings, base=2)
+        amplitudes = [results.amplitudes[bitstring] for bitstring in bitstrings]
+        samples = [results.bitstrings[bitstring] for bitstring in bitstrings]
+
+        bits = MPI.Gather(bits, 0, ctx.root_comm)
+        amplitudes = MPI.Gather(amplitudes, 0, ctx.root_comm)
+        samples = MPI.Gather(samples, 0, ctx.root_comm)
+
+        bitstrings = reverse.(digits.(bits, base=2, pad=num_qubits))
+        bitstrings = [prod(string.(bits)) for bits in bitstrings]
+        amplitudes = Dict{String, eltype(amplitudes)}(bitstrings .=> amplitudes)
+        bitstrings = DefaultDict(0, Dict{String, Int}(bitstrings .=> samples))
+    end
+    Samples(bitstrings, amplitudes)
+end
+
 """
     BitstringIterator(ctx::QXMPIContext, bitstrings)
 
@@ -133,7 +154,11 @@ end
 Function write results for QXMPIContext. Only writes from root process
 """
 function write_results(ctx::QXMPIContext, results, output_file)
-    if MPI.Comm_rank(ctx.comm) == 0 JLD2.@save output_file results end
+    if MPI.Comm_rank(ctx.comm) == 0
+        amplitudes = results.amplitudes
+        bitstrings = results.bitstrings
+        JLD2.@save output_file amplitudes bitstrings
+    end
 end
 
 Base.zero(ctx::QXMPIContext) = zero(ctx.serial_ctx)
