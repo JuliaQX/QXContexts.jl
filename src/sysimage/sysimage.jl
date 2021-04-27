@@ -1,9 +1,8 @@
 # The following structure is adapted from the OpticSim.jl package @ # d492ca0
-
 import Pkg, Libdl, PackageCompiler
 
 function compile(sysimage_path = "JuliaSysimage.$(Libdl.dlext)"; dev=false)
-    env_to_precompile = joinpath(@__DIR__, "..")
+    env_to_precompile = dirname(dirname(@__DIR__))
     precompile_execution_file = joinpath(@__DIR__, "precompile.jl")
     project_filename = joinpath(env_to_precompile, "Project.toml")
     project = Pkg.API.read_project(project_filename)
