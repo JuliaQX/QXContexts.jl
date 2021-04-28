@@ -6,6 +6,7 @@ include("logger.jl")
 include("parameters.jl")
 include("dsl.jl")
 include("execution.jl")
+include("sysimage/sysimage.jl")
 
 @reexport using QXContexts.Logger
 @reexport using QXContexts.Param
