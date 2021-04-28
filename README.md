@@ -33,8 +33,8 @@ Using custom system image with required objects compiled in can greatly reduce t
 To build a custom system image one can run the following commands from the Julia REPL
 
 ```
-include("deps/sysimage.jl")
-compile()
+import QXContexts
+QXContexts.compile()
 ```
 
 This can take up to a half hour to compile and will produce a shared object system image file in the root folder of the project.
