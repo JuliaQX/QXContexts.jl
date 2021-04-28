@@ -26,9 +26,9 @@ import Pkg
 Pkg.add(url="https://github.com/JuliaQX/QXContexts.jl")
 ```
 
-## System image
+## Custom system image
 
-Using custom system image with required objects compiled in can greatly reduce the latency when starting computations.
+Using a custom system image with required objects compiled in can greatly reduce the latency when starting computations.
 To build a custom system image one can run the following commands from the Julia REPL
 
 ```
