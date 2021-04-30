@@ -273,7 +273,7 @@ end
 Calculate a single amplitude with the given context and bitstring. Involves a sum over
 contributions from each slice.
 """
-function compute_amplitude!(ctx, bitstring::String) where T<:Complex
+function compute_amplitude!(ctx, bitstring::String)
     set_open_bonds!(ctx, bitstring)
     amplitude = zero(ctx)
     for p in SliceIterator(ctx)
@@ -322,15 +322,23 @@ function execute(dsl_file::String,
     # the parameter file to get partition parameters and to create a sampler object to 
     # produce bitstrings to compute amplitudes for.
     commands = parse_dsl(dsl_file)
-    sampler, partition_params = parse_parameters(param_file,
-                                                max_amplitudes=max_amplitudes, 
-                                                max_parameters=max_parameters)
+    sampler_args, partition_params = parse_parameters(param_file,
+                                                      max_amplitudes=max_amplitudes, 
+                                                      max_parameters=max_parameters)
 
-    # Create a context to execute the commands in and a variable to sgtore the results.
+    # Create a context to execute the commands in.
     ctx = QXContext(commands, partition_params, input_file)
     if comm !== nothing
         ctx = QXMPIContext(ctx, comm, sub_comm_size)
+
+        # Variables needed by a sampler to divide work evenly amongst groups of nodes.
+        sampler_args[:params][:rank] = MPI.Comm_rank(comm) ÷ sub_comm_size
+        sampler_args[:params][:comm_size] = MPI.Comm_size(comm) ÷ sub_comm_size
     end
+
+    # Create a sampler to produce bitstrings to get amplitudes for and a variable to store 
+    # the results.
+    sampler = construct_sampler(sampler_args)
     results = Samples()
 
     # For each bitstring produced by the sampler, compute its amplitude and accept or reject

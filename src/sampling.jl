@@ -1,6 +1,6 @@
 module Sampling
 
-export ListSampler, RejectionSampler, Samples
+export ListSampler, RejectionSampler, UniformSampler, Samples
 export construct_sampler, accept!
 
 using Random
@@ -10,7 +10,7 @@ using DataStructures
 Struct to hold the results of a simulation.
 """
 struct Samples{T}
-    bitstrings::DefaultDict{String, Int}
+    bitstrings::DefaultDict{String, <:Integer}
     amplitudes::Dict{String, T}
 end
 
@@ -28,17 +28,31 @@ A Sampler struct to compute the amplitudes for a list of bitstrings.
 """
 struct ListSampler <: AbstractSampler
     list::Vector{String}
-    num_amplitudes::Int64
+    num_amplitudes::Integer
 end
 
-function ListSampler(params)
-    if haskey(params, "num_samples")
-        num_amplitudes = params["num_samples"]
-        num_amplitudes = min(num_amplitudes, length(params["bitstrings"]))
+"""
+    ListSampler(;bitstrings::Vector{String}=String[], 
+                rank::Integer=0, 
+                comm_size::Integer=1, 
+                kwargs...)
+
+Constructor for a ListSampler to produce a portion of the given `bitstrings` determined by 
+the given `rank` and `comm_size`.
+"""
+function ListSampler(;bitstrings::Vector{String}=String[], 
+                    rank::Integer=0,
+                    comm_size::Integer=1, 
+                    kwargs...)
+    bitstrings = bitstrings[rank+1:comm_size:end]
+    if haskey(kwargs, :num_samples)
+        num_amplitudes = kwargs[:num_samples]
+        num_amplitudes = (num_amplitudes ÷ comm_size) + (rank < num_amplitudes % comm_size)
+        num_amplitudes = min(num_amplitudes, length(bitstrings))
     else
-        num_amplitudes = length(params["bitstrings"])
+        num_amplitudes = length(bitstrings)
     end
-    ListSampler(params["bitstrings"], num_amplitudes)
+    ListSampler(bitstrings, num_amplitudes)
 end
 
 """Iterator interface functions for ListSampler"""
@@ -66,20 +80,37 @@ end
 A Sampler struct to use rejection sampling to produce output.
 """
 mutable struct RejectionSampler <: AbstractSampler
-    num_qubits::Int64
-    num_samples::Int64
-    accepted::Int64
-    M::Float64
+    num_qubits::Integer
+    num_samples::Integer
+    accepted::Integer
+    M::Real
     fix_M::Bool
     rng::MersenneTwister
 end
 
-function RejectionSampler(params)
-    num_qubits = params["num_qubits"]
-    num_samples = params["num_samples"]
-    M = params["M"]
-    fix_M = params["fix_M"]
-    rng = MersenneTwister(params["seed"])
+"""
+    function RejectionSampler(;num_qubits::Integer, 
+                              num_samples::Integer, 
+                              M::Real=0.0001, 
+                              fix_M::Bool=false, 
+                              seed::Integer=42,
+                              rank::Integer=0,
+                              comm_size::Integer=1,
+                              kwargs...)
+
+Constructor for a RejectionSampler to produce and accept a number of bitstrings.
+"""
+function RejectionSampler(;num_qubits::Integer, 
+                          num_samples::Integer, 
+                          M::Real=0.0001, 
+                          fix_M::Bool=false, 
+                          seed::Integer=42,
+                          rank::Integer=0,
+                          comm_size::Integer=1,
+                          kwargs...)
+    # Evenly divide the number of bitstrings to be sampled amongst the subgroups of ranks.
+    num_samples = (num_samples ÷ comm_size) + (rank < num_samples % comm_size)
+    rng = MersenneTwister(seed + rank)
     RejectionSampler(num_qubits, num_samples, 0, M, fix_M, rng)
 end
 
@@ -122,15 +153,30 @@ end
 A Sampler struct to uniformly sample bitstrings and compute their amplitudes.
 """
 mutable struct UniformSampler <: AbstractSampler
-    num_qubits::Int64
-    num_samples::Int64
+    num_qubits::Integer
+    num_samples::Integer
     rng::MersenneTwister
 end
 
-function UniformSampler(params)
-    num_qubits = params["num_qubits"]
-    num_samples = params["num_samples"]
-    rng = MersenneTwister(params["seed"])
+"""
+    UniformSampler(;num_qubits::Integer,
+                    num_samples::Integer,
+                    seed::Integer=42,
+                    rank::Integer=0,
+                    comm_size::Integer=1,
+                    kwargs...)
+
+Constructor for a UniformSampler to uniformly sample bitstrings.
+"""
+function UniformSampler(;num_qubits::Integer,
+                        num_samples::Integer,
+                        seed::Integer=42,
+                        rank::Integer=0,
+                        comm_size::Integer=1,
+                        kwargs...)
+    # Evenly divide the number of bitstrings to be sampled amongst the subgroups of ranks.
+    num_samples = (num_samples ÷ comm_size) + (rank < num_samples % comm_size)
+    rng = MersenneTwister(seed + rank)
     UniformSampler(num_qubits, num_samples, rng)
 end
 
@@ -159,19 +205,12 @@ end
 # Sampler Constructor
 ###############################################################################
 
-CONSTRUCTORS = Base.ImmutableDict(
-    "rejection" => RejectionSampler,
-    "uniform" => UniformSampler,
-    "list" => ListSampler
-)
-
 """
     construct_sampler(params)
 
 Returns a sampler whose type is specified in `params`.
 """
-function construct_sampler(params)
-    CONSTRUCTORS[params["output_method"]](params)
-end
+construct_sampler(params) = get_constructor(params[:method])(;params[:params]...)
+get_constructor(func_name::String) = getfield(Main, Symbol(func_name*"Sampler"))
 
 end

@@ -1,8 +1,9 @@
 output:
-  num_samples: 10
-  output_method: uniform
-  seed: 42
-  num_qubits: 5
+  method: Uniform
+  params:
+    num_samples: 10
+    seed: 42
+    num_qubits: 5
 partitions:
   parameters:
     v1: 2

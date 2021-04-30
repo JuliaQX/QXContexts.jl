@@ -1,12 +1,13 @@
 output:
-  output_method: list
-  bitstrings:
-    - "01000"
-    - "01110"
-    - "10101"
-    - "10001"
-    - "10010"
-    - "11111"
+  method: List
+  params:
+    bitstrings:
+      - "01000"
+      - "01110"
+      - "10101"
+      - "10001"
+      - "10010"
+      - "11111"
 partitions:
   parameters:
     v1: 2
