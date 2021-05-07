@@ -222,7 +222,33 @@ function execute!(cmd::NconCommand, ctx::QXContext{T}) where {T}
     @timeit_debug timer_output "DSL_ncon" begin
         @debug "ncon DSL command: $(cmd.output_name)[$(output_idxs)] = $(cmd.left_name)[$(cmd.left_idxs)] * $(cmd.right_name)[$(cmd.right_idxs)]"
         @debug "ncon shapes: left_size=$(size(ctx.data[cmd.left_name])), right_size=$(size(ctx.data[cmd.right_name]))"
-        ctx.data[cmd.output_name] = EinCode((left_idxs, right_idxs), output_idxs)(ctx.data[cmd.left_name], ctx.data[cmd.right_name])
+        batched_idxs = intersect(cmd.output_idxs, cmd.left_idxs, cmd.right_idxs)
+        if length(batched_idxs) == 0
+            ctx.data[cmd.output_name] = EinCode((left_idxs, right_idxs), output_idxs)(ctx.data[cmd.left_name], ctx.data[cmd.right_name])
+        else
+            # allocate space for final tensor
+            idx_dims = Dict{Int, Int}()
+            left_dims, right_dims = size(ctx.data[cmd.left_name]), size(ctx.data[cmd.right_name])
+            for i in 1:length(left_dims) idx_dims[cmd.left_idxs[i]] = left_dims[i] end
+            for i in 1:length(right_dims) idx_dims[cmd.right_idxs[i]] = right_dims[i] end
+            output_dims = [idx_dims[x] for x in cmd.output_idxs]
+            c = zeros(eltype(T), [idx_dims[x] for x in cmd.output_idxs]...)
+            # loop over batched idxs
+            batched_dims = Tuple(getindex.([idx_dims], batched_idxs))
+            a = ctx.data[cmd.left_name]
+            b = ctx.data[cmd.right_name]
+            b_pos = Dict(x => i for (i, x) in enumerate(batched_idxs))
+            ec = EinCode((Tuple([x for x in cmd.left_idxs if !haskey(b_pos, x)]), Tuple([x for x in cmd.right_idxs if !haskey(b_pos, x)])), Tuple([x for x in cmd.output_idxs if !haskey(b_pos, x)]))
+            for idx in CartesianIndices(batched_dims)
+                c_view = @view c[[haskey(b_pos, cmd.output_idxs[i]) ? idx[b_pos[cmd.output_idxs[i]]] : UnitRange(1, output_dims[i]) for i in 1:length(output_dims)]...]
+                a_view = @view a[[haskey(b_pos, cmd.left_idxs[i]) ? idx[b_pos[cmd.left_idxs[i]]] : UnitRange(1, left_dims[i]) for i in 1:length(left_dims)]...]
+                b_view = @view b[[haskey(b_pos, cmd.right_idxs[i]) ? idx[b_pos[cmd.right_idxs[i]]] : UnitRange(1, right_dims[i]) for i in 1:length(right_dims)]...]
+                if ndims(a_view) == 0 a_view = collect(a_view) end
+                if ndims(b_view) == 0 b_view = collect(b_view) end
+                c_view[:] = ec(a_view, b_view)
+            end
+            ctx.data[cmd.output_name] = c
+        end
     end
     nothing
 end
