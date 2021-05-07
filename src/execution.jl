@@ -1,6 +1,7 @@
 module Execution
 
-export QXContext, execute!, timer_output, reduce_nodes
+export QXContext, QXMPIContext, execute!, timer_output, reduce_nodes
+export Samples
 export execute
 export set_open_bonds!, set_slice_vals!
 export compute_amplitude!
@@ -17,7 +18,6 @@ using Random
 using OMEinsum
 using QXContexts.DSL
 using QXContexts.Param
-using QXContexts.Sampling
 import QXContexts
 
 const timer_output = TimerOutput()
@@ -143,14 +143,22 @@ Base.iterate(a::SliceIterator, state) = length(a) <= (state + 1 - a.start) ? not
 Base.length(a::SliceIterator) = a.stop - a.start + 1
 Base.eltype(::SliceIterator) = Vector{Int}
 
+"""
+Struct to hold the results of a simulation.
+"""
+struct Samples{T}
+    bitstrings_counts::DefaultDict{String, <:Integer}
+    amplitudes::Dict{String, T}
+end
+
+Samples() = Samples(DefaultDict{String, Int}(0), Dict{String, ComplexF32}())
+
 """Function for reducing over amplitude contributions from each slice. For non-serial
 contexts, contributions are summed over"""
 reduce_slices(::QXContext, a) = a
 
-"""Function for reducing over calculated amplitudes. For non-serial contexts, contributions
-are gathered"""
-reduce_amplitudes(::QXContext, a) = a
-
+"""Function for reducing over calculated amplitudes and samples. For non-serial contexts, 
+contributions are gathered"""
 reduce_results(::QXContext, results::Samples) = results
 
 """Function for reducing over calculated amplitudes. For non-serial contexts, contributions
@@ -164,8 +172,8 @@ Save results from calculations for the given
 """
 function write_results(::QXContext, results, output_file)
     amplitudes = results.amplitudes
-    bitstrings = results.bitstrings
-    JLD2.@save output_file amplitudes bitstrings
+    bitstrings_counts = results.bitstrings_counts
+    JLD2.@save output_file amplitudes bitstrings_counts
 end
 
 """Function to create a scalar with zero value of appropriate data-type for given contexct"""
@@ -289,10 +297,11 @@ end
 Calculate a single amplitude with the given context and bitstring. Update `results` to hold
 the new amplitude.
 """
-function compute_amplitude!(results::Samples{T}, ctx, bitstring::String) where T<:Complex
+function compute_amplitude!(results::Samples, ctx, bitstring::String)
     if !haskey(results.amplitudes, bitstring)
         results.amplitudes[bitstring] = compute_amplitude!(ctx, bitstring)
     end
+    results
 end
 
 include("mpi_execution.jl")
@@ -331,21 +340,21 @@ function execute(dsl_file::String,
     if comm !== nothing
         ctx = QXMPIContext(ctx, comm, sub_comm_size)
 
-        # Variables needed by a sampler to divide work evenly amongst groups of nodes.
-        sampler_args[:params][:rank] = MPI.Comm_rank(comm) ÷ sub_comm_size
-        sampler_args[:params][:comm_size] = MPI.Comm_size(comm) ÷ sub_comm_size
+        # # Variables needed by a sampler to divide work evenly amongst groups of nodes.
+        # sampler_args[:params][:rank] = MPI.Comm_rank(comm) ÷ sub_comm_size
+        # sampler_args[:params][:comm_size] = MPI.Comm_size(comm) ÷ sub_comm_size
     end
 
     # Create a sampler to produce bitstrings to get amplitudes for and a variable to store 
     # the results.
-    sampler = construct_sampler(sampler_args)
+    sampler = QXContexts.Sampling.create_sampler(sampler_args, ctx)
     results = Samples()
 
     # For each bitstring produced by the sampler, compute its amplitude and accept or reject
     # it as sample in accordance with the sampler.
     for bitstring in sampler
-        compute_amplitude!(results, ctx, bitstring)
-        accept!(results, sampler, bitstring)
+        results = compute_amplitude!(results, ctx, bitstring)
+        QXContexts.Sampling.accept!(results, sampler, bitstring)
     end
 
     # Collect, save and return the results.

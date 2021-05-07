@@ -4,7 +4,6 @@ export parse_parameters
 
 import YAML
 using  DataStructures
-using QXContexts.Sampling
 import Base.Iterators: take
 
 """

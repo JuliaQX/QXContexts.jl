@@ -1,20 +1,13 @@
 module Sampling
 
-export ListSampler, RejectionSampler, UniformSampler, Samples
-export construct_sampler, accept!
+export ListSampler, RejectionSampler, UniformSampler
+export create_sampler, accept!
+
+import MPI
 
 using Random
 using DataStructures
-
-"""
-Struct to hold the results of a simulation.
-"""
-struct Samples{T}
-    bitstrings::DefaultDict{String, <:Integer}
-    amplitudes::Dict{String, T}
-end
-
-Samples() = Samples(DefaultDict{String, Int}(0), Dict{String, ComplexF32}())
+using QXContexts.Execution
 
 """Abstract type for samplers"""
 abstract type AbstractSampler end
@@ -28,7 +21,6 @@ A Sampler struct to compute the amplitudes for a list of bitstrings.
 """
 struct ListSampler <: AbstractSampler
     list::Vector{String}
-    num_amplitudes::Integer
 end
 
 """
@@ -47,21 +39,23 @@ function ListSampler(;bitstrings::Vector{String}=String[],
     bitstrings = bitstrings[rank+1:comm_size:end]
     if haskey(kwargs, :num_samples)
         num_amplitudes = kwargs[:num_samples]
-        num_amplitudes = (num_amplitudes ÷ comm_size) + (rank < num_amplitudes % comm_size)
+        num_amplitudes = get_rank_size(num_amplitudes, comm_size, rank)
         num_amplitudes = min(num_amplitudes, length(bitstrings))
     else
         num_amplitudes = length(bitstrings)
     end
-    ListSampler(bitstrings, num_amplitudes)
+    ListSampler(bitstrings[1:num_amplitudes])
 end
 
 """Iterator interface functions for ListSampler"""
-Base.iterate(sampler::ListSampler) = (first(sampler.list), 1)
+# Base.iterate(sampler::ListSampler) = (first(sampler.list), 1)
 
-function Base.iterate(sampler::ListSampler, ind::Integer)
-    ind < sampler.num_amplitudes || (return nothing) 
-    (sampler.list[ind+1], ind+1)
-end
+# function Base.iterate(sampler::ListSampler, ind::Integer)
+#     ind < length(sampler.list) || (return nothing) 
+#     (sampler.list[ind+1], ind+1)
+# end
+Base.iterate(sampler::ListSampler) = Base.iterate(sampler.list)
+Base.iterate(sampler::ListSampler, state) = Base.iterate(sampler.list, state)
 
 """
     accept!(results::Samples{T}, ::ListSampler, bitstring::String) where T<:Complex
@@ -109,7 +103,7 @@ function RejectionSampler(;num_qubits::Integer,
                           comm_size::Integer=1,
                           kwargs...)
     # Evenly divide the number of bitstrings to be sampled amongst the subgroups of ranks.
-    num_samples = (num_samples ÷ comm_size) + (rank < num_samples % comm_size)
+    num_amplitudes = get_rank_size(num_samples, comm_size, rank)
     rng = MersenneTwister(seed + rank)
     RejectionSampler(num_qubits, num_samples, 0, M, fix_M, rng)
 end
@@ -141,7 +135,7 @@ function accept!(results::Samples{T}, sampler::RejectionSampler, bitstring::Stri
     u = rand(sampler.rng)
     if u < Np / sampler.M
         sampler.accepted += 1
-        results.bitstrings[bitstring] += 1
+        results.bitstrings_counts[bitstring] += 1
     end
 end
 
@@ -198,7 +192,7 @@ end
 Accept the given bitstring as a sample and update `results` accordingly.
 """
 function accept!(results::Samples{T}, ::UniformSampler, bitstring::String) where T<:Complex
-    results.bitstrings[bitstring] += 1
+    results.bitstrings_counts[bitstring] += 1
 end
 
 ###############################################################################
@@ -206,11 +200,19 @@ end
 ###############################################################################
 
 """
-    construct_sampler(params)
+    create_sampler(params)
 
 Returns a sampler whose type is specified in `params`.
 """
-construct_sampler(params) = get_constructor(params[:method])(;params[:params]...)
+create_sampler(params) = get_constructor(params[:method])(;params[:params]...)
 get_constructor(func_name::String) = getfield(Main, Symbol(func_name*"Sampler"))
+
+create_sampler(params, ctx::QXContext{T}) where T = create_sampler(params)
+
+function create_sampler(params, ctx::QXMPIContext)
+    params[:rank] = MPI.Comm_rank(ctx.comm) ÷ MPI.Comm_size(ctx.sub_comm)
+    params[:comm_size] = MPI.Comm_size(ctx.comm) ÷ MPI.Comm_size(ctx.sub_comm)
+    create_sampler(params)
+end
 
 end

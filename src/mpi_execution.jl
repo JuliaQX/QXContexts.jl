@@ -101,30 +101,24 @@ function reduce_slices(ctx::QXMPIContext, a)
 end
 
 """
-    reduce_amplitudes(ctx::QXMPIContext, a)
+    reduce_results(ctx::QXMPIContext, results::Samples)
 
-Function to gather amplitudes from sub-communicators
+Function to gather amplitudes and samples from sub-communicators.
 """
-function reduce_amplitudes(ctx::QXMPIContext, a)
-    if MPI.Comm_rank(ctx.sub_comm) == 0
-        return MPI.Gather(a, 0, ctx.root_comm)
-    end
-end
-
 function reduce_results(ctx::QXMPIContext, results::Samples)
     if MPI.Comm_rank(ctx.sub_comm) == 0
         bitstrings = keys(results.amplitudes)
         num_qubits = length(first(bitstrings))
 
-        bits = parse.(UInt64, bitstrings, base=2)
+        bitstrings_as_ints = parse.(UInt64, bitstrings, base=2)
         amplitudes = [results.amplitudes[bitstring] for bitstring in bitstrings]
-        samples = [results.bitstrings[bitstring] for bitstring in bitstrings]
+        samples = [results.bitstrings_counts[bitstring] for bitstring in bitstrings]
 
-        bits = MPI.Gather(bits, 0, ctx.root_comm)
+        bitstrings_as_ints = MPI.Gather(bitstrings_as_ints, 0, ctx.root_comm)
         amplitudes = MPI.Gather(amplitudes, 0, ctx.root_comm)
         samples = MPI.Gather(samples, 0, ctx.root_comm)
 
-        bitstrings = reverse.(digits.(bits, base=2, pad=num_qubits))
+        bitstrings = reverse.(digits.(bitstrings_as_ints, base=2, pad=num_qubits))
         bitstrings = [prod(string.(bits)) for bits in bitstrings]
         amplitudes = Dict{String, eltype(amplitudes)}(bitstrings .=> amplitudes)
         bitstrings = DefaultDict(0, Dict{String, Int}(bitstrings .=> samples))
@@ -156,8 +150,8 @@ Function write results for QXMPIContext. Only writes from root process
 function write_results(ctx::QXMPIContext, results, output_file)
     if MPI.Comm_rank(ctx.comm) == 0
         amplitudes = results.amplitudes
-        bitstrings = results.bitstrings
-        JLD2.@save output_file amplitudes bitstrings
+        bitstrings_counts = results.bitstrings_counts
+        JLD2.@save output_file amplitudes bitstrings_counts
     end
 end
 

@@ -41,7 +41,7 @@ using DataStructures
         execute(dsl_file, param_file, input_data_file, output_data_file)
 
         # ensure all dictionary entries match
-        output = FileIO.load(output_data_file, "bitstrings")
+        output = FileIO.load(output_data_file, "bitstrings_counts")
         @test length(output) == 2
         @test output["11111"] + output["00000"] == 10
     end
