@@ -8,8 +8,7 @@ import Base.Iterators: take
 
 """
     parse_parameters(filename::String;
-                     max_parameters::Union{Int, Nothing}=nothing,
-                     max_amplitudes::Union{Int, Nothing}=nothing)
+                     max_parameters::Union{Int, Nothing}=nothing)
 
 Parse the parameters yml file to read information about partition parameters and output 
 sampling method.
@@ -29,8 +28,7 @@ output:
       - "10101"
 """
 function parse_parameters(filename::String;
-                          max_parameters::Union{Int, Nothing}=nothing,
-                          max_amplitudes::Union{Int, Nothing}=nothing)
+                          max_parameters::Union{Int, Nothing}=nothing)
     param_dict = YAML.load_file(filename, dicttype=OrderedDict{String, Any})
 
     # parse the partition paramters section of the parameter file
@@ -41,7 +39,6 @@ function parse_parameters(filename::String;
     # parse the output method section of the parameter file
     method_params = OrderedDict{Symbol, Any}(Symbol(x[1]) => x[2] for x in param_dict["output"])
     method_params[:params] = OrderedDict{Symbol, Any}(Symbol(x[1]) => x[2] for x in method_params[:params])
-    max_amplitudes === nothing || (method_params[:params][:num_samples] = max_amplitudes)
 
     return method_params, partition_params
 end

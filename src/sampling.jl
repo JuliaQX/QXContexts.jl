@@ -205,8 +205,6 @@ end
 Returns a sampler whose type is specified in `params`.
 """
 create_sampler(params) = get_constructor(params[:method])(;params[:params]...)
-get_constructor(func_name::String) = getfield(Main, Symbol(func_name*"Sampler"))
-
 create_sampler(params, ctx::QXContext{T}) where T = create_sampler(params)
 
 function create_sampler(params, ctx::QXMPIContext)
@@ -214,5 +212,12 @@ function create_sampler(params, ctx::QXMPIContext)
     params[:comm_size] = MPI.Comm_size(ctx.comm) ÷ MPI.Comm_size(ctx.sub_comm)
     create_sampler(params)
 end
+
+function create_sampler(params, ctx, max_amplitudes=nothing)
+    max_amplitudes === nothing || (params[:params][:num_samples] = max_amplitudes)
+    create_sampler(params, ctx)
+end
+
+get_constructor(func_name::String) = getfield(Main, Symbol(func_name*"Sampler"))
 
 end

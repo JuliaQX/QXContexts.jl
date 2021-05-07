@@ -332,7 +332,6 @@ function execute(dsl_file::String,
     # produce bitstrings to compute amplitudes for.
     commands = parse_dsl(dsl_file)
     sampler_args, partition_params = parse_parameters(param_file,
-                                                      max_amplitudes=max_amplitudes, 
                                                       max_parameters=max_parameters)
 
     # Create a context to execute the commands in.
@@ -347,7 +346,7 @@ function execute(dsl_file::String,
 
     # Create a sampler to produce bitstrings to get amplitudes for and a variable to store 
     # the results.
-    sampler = QXContexts.Sampling.create_sampler(sampler_args, ctx)
+    sampler = QXContexts.Sampling.create_sampler(sampler_args, ctx, max_amplitudes)
     results = Samples()
 
     # For each bitstring produced by the sampler, compute its amplitude and accept or reject
