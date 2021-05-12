@@ -1,0 +1,12 @@
+output:
+  method: Rejection
+  params:
+    num_qubits: 5
+    num_samples: 10
+    M: 0.001
+    fix_M: false
+    seed: 42
+partitions:
+  parameters:
+    v1: 2
+    v2: 2

@@ -28,8 +28,22 @@ using DataStructures
 
         execute(dsl_file, param_file, input_data_file, output_data_file)
         # ensure all dictionary entries match
-        output = FileIO.load(output_data_file, "results")
-        @test output ≈ expected_vals
+        output = FileIO.load(output_data_file, "amplitudes")
+        output_vals = [output[bitstring] for bitstring in keys(expected)]
+        @test output_vals ≈ expected_vals
+    end
+
+
+    param_file = joinpath(test_path, "examples/ghz/ghz_5_rejection.yml")
+
+    mktempdir() do path
+        output_data_file = joinpath(path, "out.jld2")
+        execute(dsl_file, param_file, input_data_file, output_data_file)
+
+        # ensure all dictionary entries match
+        output = FileIO.load(output_data_file, "bitstrings_counts")
+        @test length(output) == 2
+        @test output["11111"] + output["00000"] == 10
     end
 end
 

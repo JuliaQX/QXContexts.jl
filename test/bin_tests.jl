@@ -24,9 +24,9 @@ include("../bin/qxrun.jl")
                 "-o", output_fname]
         main(args)
         @test isfile(output_fname)
-        output = load(output_fname, "results")
-        expected = collect(values(ghz_results))
-        @test output ≈ expected
+
+        output = load(output_fname, "amplitudes")
+        @test all([output[x] ≈ ghz_results[x] for x in keys(output)])
     end
 
     mktempdir() do path
@@ -36,9 +36,10 @@ include("../bin/qxrun.jl")
                 "--number-amplitudes", "1"]
         main(args)
         @test isfile(output_fname)
-        output = load(output_fname, "results")
-        expected = [ghz_results["01000"]]
-        @test output ≈ expected
+
+        output = load(output_fname, "amplitudes")
+        @test length(output) == 1
+        @test output["01000"] ≈ ghz_results["01000"]
     end
 
     mktempdir() do path
@@ -49,9 +50,10 @@ include("../bin/qxrun.jl")
                 "--number-slices", "1"]
         main(args)
         @test isfile(output_fname)
-        output = load(output_fname, "results")
-        expected = [ghz_results["01000"], ghz_results["01110"]]
-        @test output ≈ expected
+
+        output = load(output_fname, "amplitudes")
+        @test length(output) == 2
+        @test all([output[x] ≈ ghz_results[x] for x in ["01000", "01110"]])
     end
 
 end
