@@ -338,10 +338,6 @@ function execute(dsl_file::String,
     ctx = QXContext(commands, partition_params, input_file)
     if comm !== nothing
         ctx = QXMPIContext(ctx, comm, sub_comm_size)
-
-        # # Variables needed by a sampler to divide work evenly amongst groups of nodes.
-        # sampler_args[:params][:rank] = MPI.Comm_rank(comm) ÷ sub_comm_size
-        # sampler_args[:params][:comm_size] = MPI.Comm_size(comm) ÷ sub_comm_size
     end
 
     # Create a sampler to produce bitstrings to get amplitudes for and a variable to store 

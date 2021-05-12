@@ -36,7 +36,8 @@ function ListSampler(;bitstrings::Vector{String}=String[],
                     rank::Integer=0,
                     comm_size::Integer=1, 
                     kwargs...)
-    bitstrings = bitstrings[rank+1:comm_size:end]
+    range = get_rank_range(length(bitstrings), comm_size, rank)
+    bitstrings = bitstrings[range]
     if haskey(kwargs, :num_samples)
         num_amplitudes = kwargs[:num_samples]
         num_amplitudes = get_rank_size(num_amplitudes, comm_size, rank)
@@ -48,12 +49,6 @@ function ListSampler(;bitstrings::Vector{String}=String[],
 end
 
 """Iterator interface functions for ListSampler"""
-# Base.iterate(sampler::ListSampler) = (first(sampler.list), 1)
-
-# function Base.iterate(sampler::ListSampler, ind::Integer)
-#     ind < length(sampler.list) || (return nothing) 
-#     (sampler.list[ind+1], ind+1)
-# end
 Base.iterate(sampler::ListSampler) = Base.iterate(sampler.list)
 Base.iterate(sampler::ListSampler, state) = Base.iterate(sampler.list, state)
 
@@ -202,10 +197,15 @@ end
 """
     create_sampler(params)
 
-Returns a sampler whose type is specified in `params`.
+Returns a sampler whose type and parameters are specified in the Dict `params`.
+
+Additional parameters that determine load balancing and totale amout of work to be done
+are set by `max_amplitudes` and the Context `ctx`.
 """
-create_sampler(params) = get_constructor(params[:method])(;params[:params]...)
-create_sampler(params, ctx::QXContext{T}) where T = create_sampler(params)
+function create_sampler(params, ctx, max_amplitudes=nothing)
+    max_amplitudes === nothing || (params[:params][:num_samples] = max_amplitudes)
+    create_sampler(params, ctx)
+end
 
 function create_sampler(params, ctx::QXMPIContext)
     params[:rank] = MPI.Comm_rank(ctx.comm) ÷ MPI.Comm_size(ctx.sub_comm)
@@ -213,10 +213,8 @@ function create_sampler(params, ctx::QXMPIContext)
     create_sampler(params)
 end
 
-function create_sampler(params, ctx, max_amplitudes=nothing)
-    max_amplitudes === nothing || (params[:params][:num_samples] = max_amplitudes)
-    create_sampler(params, ctx)
-end
+create_sampler(params, ctx::QXContext{T}) where T = create_sampler(params)
+create_sampler(params) = get_constructor(params[:method])(;params[:params]...)
 
 get_constructor(func_name::String) = getfield(Main, Symbol(func_name*"Sampler"))
 

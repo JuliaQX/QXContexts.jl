@@ -4,6 +4,7 @@ General utility functions for working with MPI and partitions
 
 export get_rank_size
 export get_rank_start
+export get_rank_range
 
 """
     get_rank_size(n::Integer, size::Integer, rank::Integer)

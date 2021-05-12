@@ -15,10 +15,6 @@ sampling method.
 
 Example Parameter file
 ======================
-partitions:
-  parameters:
-    v1: 2
-    v2: 2
 output:
   method: List
   params:
@@ -26,6 +22,10 @@ output:
       - "01000"
       - "01110"
       - "10101"
+partitions:
+  parameters:
+    v1: 2
+    v2: 2
 """
 function parse_parameters(filename::String;
                           max_parameters::Union{Int, Nothing}=nothing)
