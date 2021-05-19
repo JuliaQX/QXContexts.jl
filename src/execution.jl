@@ -69,7 +69,7 @@ function QXContext(::Type{T},
         push!(slice_vals, -1)
     end
 
-    cmds = filter(x -> typeof(x) in [NconCommand, ViewCommand, SaveCommand], cmds)
+    cmds = filter(x -> typeof(x) in [NconCommand, ViewCommand, SaveCommand, ReshapeCommand], cmds)
 
     QXContext{T}(open_bonds, slice_syms, slice_dims, slice_vals, cmds, data)
 end
