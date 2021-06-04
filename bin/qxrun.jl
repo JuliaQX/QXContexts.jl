@@ -1,4 +1,4 @@
-using MPI
+# using MPI
 using QXContexts
 using ArgParse
 
@@ -35,10 +35,10 @@ function parse_commandline(ARGS)
             help = "The number of slices to use out of number given in parameter file"
             default = nothing
             arg_type = Int
-        "--sub-communicator-size", "-m"
-            help = "The number of ranks to assign to each sub-communicator for partitions"
-            default = 1
-            arg_type = Int
+        # "--sub-communicator-size", "-m"
+        #     help = "The number of ranks to assign to each sub-communicator for partitions"
+        #     default = 1
+        #     arg_type = Int
         "-v"
             help = "Enable verbose output"
             action = :count_invocations
@@ -52,10 +52,10 @@ end
 QXContexts entry point
 """
 function main(ARGS)
-    if !MPI.Initialized()
-        MPI.Init()
-    end
-    comm = MPI.COMM_WORLD
+    # if !MPI.Initialized()
+        # MPI.Init()
+    # end
+    # comm = MPI.COMM_WORLD
 
     args = parse_commandline(ARGS)
 
@@ -65,7 +65,7 @@ function main(ARGS)
     output_file    = args["output-file"]
     number_amplitudes = args["number-amplitudes"]
     number_slices  = args["number-slices"]
-    sub_comm_size  = args["sub-communicator-size"]
+    # sub_comm_size  = args["sub-communicator-size"]
     verbose        = args["v"]
 
     # if parameter file and/or input file not given assume same name
@@ -80,10 +80,8 @@ function main(ARGS)
                       parameter_file,
                       input_file,
                       output_file,
-                      comm,
                       max_amplitudes=number_amplitudes,
-                      max_parameters=number_slices,
-                      sub_comm_size=sub_comm_size)
+                      max_slices=number_slices)
 end
 
 
