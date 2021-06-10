@@ -5,7 +5,7 @@ export build_tree, ComputeNode, ComputeGraph, get_commands, params
 # In this file we define a tree data structure which can be used for optimisation passes
 # over contraction commands
 
-"""Generic binary tree node data structure"""
+"""Generic tree node data structure"""
 mutable struct ComputeNode{T}
     op::Union{Nothing, T}
     children::Vector{ComputeNode}

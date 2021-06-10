@@ -147,7 +147,7 @@ end
                        force::Bool=true,
                        metadata=nothing)
 
-Function to create a dsl and data files to contracting the given tensor network circuit
+Function to create dsl and data files to contract the given tensor network circuit
 with the plan provided
 """
 function generate_dsl_files(compute_tree::ComputeGraph,
