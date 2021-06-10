@@ -34,7 +34,7 @@ which returns leaves before parents.
 function get_commands(cn::ComputeNode, type::Type=Any; by=nothing, iterf=PostOrderDFS)
     cmds = map(x -> x.op, filter(x -> x.op isa type, collect(iterf(cn))))
     if by !== nothing
-        cmds = sort(cmds, by=by)
+        sort!(cmds, by=by)
     end
     cmds
 end

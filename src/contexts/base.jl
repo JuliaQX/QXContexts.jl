@@ -136,8 +136,10 @@ function QXContext{T}(cg::ComputeGraph) where T
     for (k, v) in pairs(cg.tensors)
         tensors[k] = convert(T, v)
     end
-    slice_dims = convert(OrderedDict, sort(params(cg, ViewCommand)))
-    output_dims = convert(OrderedDict, sort(params(cg, OutputCommand)))
+    slice_dims = convert(OrderedDict, params(cg, ViewCommand))
+    output_dims = convert(OrderedDict, params(cg, OutputCommand))
+    sort!(slice_dims)
+    sort!(output_dims)
     QXContext{T}(Dict{Symbol, Int}(), tensors, cg, slice_dims, output_dims)
 end
 
