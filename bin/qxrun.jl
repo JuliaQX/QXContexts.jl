@@ -35,10 +35,16 @@ function parse_commandline(ARGS)
             help = "The number of slices to use out of number given in parameter file"
             default = nothing
             arg_type = Int
-        # "--sub-communicator-size", "-m"
-        #     help = "The number of ranks to assign to each sub-communicator for partitions"
-        #     default = 1
-        #     arg_type = Int
+        "--sub-comm-size", "-s"
+            help = "The number of ranks to assign to each sub-communicator for partitions"
+            default = 1
+            arg_type = Int
+        "--mpi", "-m"
+            help = "Use MPI"
+            action = :store_true
+        "--gpu", "-g"
+            help = "Use GPU if available"
+            action = :store_true
         "-v"
             help = "Enable verbose output"
             action = :count_invocations
@@ -52,35 +58,22 @@ end
 QXContexts entry point
 """
 function main(ARGS)
-    # if !MPI.Initialized()
-        # MPI.Init()
-    # end
-    # comm = MPI.COMM_WORLD
-
     args = parse_commandline(ARGS)
 
     dsl_file       = args["dsl"]
-    parameter_file = args["parameter-file"]
     input_file     = args["input-file"]
+    param_file = args["parameter-file"]
     output_file    = args["output-file"]
     number_amplitudes = args["number-amplitudes"]
     number_slices  = args["number-slices"]
-    # sub_comm_size  = args["sub-communicator-size"]
+    sub_comm_size  = args["sub-comm-size"]
+    use_mpi        = args["mpi"]
+    use_gpu        = args["gpu"]
     verbose        = args["v"]
 
-    # if parameter file and/or input file not given assume same name
-    # as dsl with appropriate suffix
-    if parameter_file === nothing
-        parameter_file = splitext(dsl_file)[1] * ".yml"
-    end
-    if input_file === nothing
-        input_file = splitext(dsl_file)[1] * ".jld2"
-    end
-    results = execute(dsl_file,
-                      parameter_file,
-                      input_file,
-                      output_file,
-                      max_amplitudes=number_amplitudes,
+    results = execute(dsl_file, input_file, param_file, output_file;
+                      use_mpi=use_mpi, sub_comm_size=sub_comm_size,
+                      use_gpu=use_gpu, max_amplitudes=number_amplitudes,
                       max_slices=number_slices)
 end
 
