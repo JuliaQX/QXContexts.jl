@@ -3,6 +3,6 @@ using Test
 using TestSetExtensions
 using Logging
 
-@testset "QXContexts.jl" begin
+@testset ExtendedTestSet "QXContexts.jl" begin
     @includetests ARGS
 end

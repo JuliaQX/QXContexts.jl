@@ -4,7 +4,3 @@ output:
     num_samples: 10
     seed: 42
     num_qubits: 5
-partitions:
-  parameters:
-    v1: 2
-    v2: 2
