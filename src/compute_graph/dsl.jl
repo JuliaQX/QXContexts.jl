@@ -111,6 +111,7 @@ Read a DSL file and tensors file and return compute tree and meta data
 """
 function parse_dsl_files(dsl_file::String, data_file::String)
     root_node, metadata = parse_dsl(dsl_file)
+    @assert splitext(data_file)[end] == ".jld2" "Data file should have \".jld2\" suffix"
     tensors = Dict(Symbol(x) => y for (x, y) in pairs(load(data_file)))
     ComputeGraph(root_node, tensors), metadata
 end

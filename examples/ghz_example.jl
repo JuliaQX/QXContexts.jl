@@ -1,6 +1,8 @@
-# using MPI
-using QXContexts
 using Logging
+using ArgParse
+using MPI
+
+using QXContexts
 
 """
     main(ARGS)
@@ -8,27 +10,46 @@ using Logging
 QXContexts entry point
 """
 function main(args)
-    # if !MPI.Initialized()
-    #     MPI.Init()
-    # end
-    # comm = MPI.COMM_WORLD
-    # rank = MPI.Comm_rank(comm)
+    s = ArgParseSettings("QXContexts")
+    @add_arg_table! s begin
+        "--sub-comm-size", "-s"
+            help = "The number of ranks to assign to each sub-communicator for partitions"
+            default = 1
+            arg_type = Int
+        "--mpi", "-m"
+            help = "Use MPI"
+            action = :store_true
+        "--gpu", "-g"
+            help = "Use GPU if available"
+            action = :store_true
+        "--verbose", "-v"
+            help = "Enable logging"
+            action = :store_true
+    end
+    parsed_args = parse_args(args, s)
 
-    if length(args) > 0 && args[1] === "3"
-        global_logger(QXContexts.Logger.QXLoggerMPIShared())
-    elseif length(args) > 0 && args[1] === "2"
-        global_logger(QXContexts.Logger.QXLoggerMPIPerRank())
-    else
-        global_logger(QXContexts.Logger.QXLogger())
+    if parsed_args["verbose"]
+        if parsed_args["mpi"]
+            if !MPI.Initialized() MPI.Init() end
+            global_logger(QXContexts.Logger.QXLoggerMPIPerRank())
+        else
+            global_logger(QXContexts.Logger.QXLogger())
+        end
     end
 
     file_path      = @__DIR__
     dsl_file       = joinpath(file_path, "ghz/ghz_5.qx")
-    parameter_file = joinpath(file_path, "ghz/ghz_5.yml")
+    param_file     = joinpath(file_path, "ghz/ghz_5.yml")
     input_file     = joinpath(file_path, "ghz/ghz_5.jld2")
     output_file    = joinpath(file_path, "ghz/out.jld2")
 
-    results = execute(dsl_file, parameter_file, input_file, output_file)
+    results = execute(dsl_file, input_file, param_file, output_file;
+                      use_mpi=parsed_args["mpi"],
+                      sub_comm_size=parsed_args["sub-comm-size"],
+                      use_gpu=parsed_args["gpu"])
+    if parsed_args["verbose"]
+        @info results
+    end
 end
 
 main(ARGS)

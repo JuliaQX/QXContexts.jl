@@ -12,15 +12,15 @@ include("utils.jl")
 
     test_path = dirname(@__DIR__)
     dsl_file = joinpath(test_path, "examples/ghz/ghz_5.qx")
-    input_data_file = joinpath(test_path, "examples/ghz/ghz_5.jld2")
+    input_file = joinpath(test_path, "examples/ghz/ghz_5.jld2")
     param_file  = joinpath(test_path, "examples/ghz/ghz_5.yml")
 
     mktempdir() do path
-        output_data_file = joinpath(path, "out.jld2")
-        execute(dsl_file, param_file, input_data_file, output_data_file)
+        output_file = joinpath(path, "out.jld2")
+        execute(dsl_file, input_file, param_file, output_file)
 
         # ensure all dictionary entries match
-        output = load(output_data_file, "results")
+        output = load(output_file, "results")
         @test output[1] == collect(keys(ghz_results))
         @test output[2] ≈ collect(values(ghz_results))
     end
