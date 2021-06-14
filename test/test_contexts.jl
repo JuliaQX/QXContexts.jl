@@ -17,6 +17,14 @@ include("utils.jl")
 
         si = SliceIterator(dims, 1, 10)
         @test length(si) == 10
+
+        si = SliceIterator(dims)
+        @test length(si) == prod(dims)
+        si2 = SliceIterator(si, 1, 5)
+        @test length(si2) == 5
+
+        si3 = SliceIterator(si2, 3, 5)
+        @test length(si3) == 3
     end
 
     @testset "Test QXContext" begin

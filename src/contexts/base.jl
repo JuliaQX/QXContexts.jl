@@ -7,11 +7,12 @@ tensor and parameter storage
 Each context implements the following functions to access tensor and parameter information:
 gettensor(ctx, sym): get the tensor for the given symbol
 settensor!(ctx, value, sym): set the tensor data for the given symbol
-getindex(ctx, sym): get the parameter value corresponding to given symbol
-setindex!(ctx, value, sym): set the parameter value corresponding to given symbol
-haskey(ctx, sym): Check if the parameter key exists
-zeros(ctx, size): create array of zeros with appropritate type for context
-zero(ctx): create scalar with same type used in context
+Base.getindex(ctx, sym): get the parameter value corresponding to given symbol
+Base.setindex!(ctx, value, sym): set the parameter value corresponding to given symbol
+Base.haskey(ctx, sym): Check if the parameter key exists
+Base.zeros(ctx, size): create array of zeros with appropritate type for context
+Base.zero(ctx): create scalar with same type used in context
+Base.eltype(ctx): return the element type of numeric datastructures
 set_open_bonds!(ctx, bitstring::String): Set output parameters according to provided bitstring
 set_slice_vals!(ctx, slice_values::Vector{Int}): Set output parameters according to provided slice values
 (c::ctx)(): Execute the compute graph in the provided context. Returns final tensor
@@ -22,7 +23,10 @@ tensors and parameters. For example contraction command this function is defined
 
 (c::ContractionCommand)(ctx): implenents the contraction described by the given contraction index with the context
 
-Each context will also implement ctxmap, ctxreduce, ctxgather and ctxfilter functions to enable generic code to be written that will work with various distributed backend
+Each context will also implement the following functions to be implemented by distributed contexts
+ctxmap(f, ctx, items): Applies function f to items
+ctxreduce(f, ctx, items): Performs reduction using the function f on items
+ctxgather(ctx, items): Gathers all items
 """
 
 using QXContexts.ComputeGraphs
@@ -32,7 +36,7 @@ using DataStructures
 
 export gettensor, settensor!, set_open_bonds!, set_slice_vals!
 export AbstractContext, QXContext, compute_amplitude!
-export ctxmap, ctxfilter, ctxgather, ctxreduce
+export ctxmap, ctxgather, ctxreduce
 
 abstract type AbstractContext end
 
@@ -188,6 +192,7 @@ end
 
 Base.zeros(::QXContext{T}, size) where T = zeros(eltype(T), size)
 Base.zero(::QXContext{T}) where T = zero(eltype(T))
+Base.eltype(::QXContext{T}) where T = eltype(T)
 
 """
     set_open_bonds!(ctx::QXContext, bitstring::String)
@@ -227,7 +232,7 @@ function (ctx::QXContext)()
 end
 
 """
-    compute_amplitude!(ctx, bitstring::String; num_slices=nothing)
+    compute_amplitude!(ctx::QXContext, bitstring::String; max_slices=nothing)
 
 Calculate a single amplitude with the given context and bitstring. Involves a sum over
 contributions from each slice. Can optionally set the number of bonds. By default all slices
@@ -244,18 +249,18 @@ function compute_amplitude!(ctx::QXContext, bitstring::String; max_slices=nothin
             amplitude += ctx()
         end
     end
-    if ndims(amplitude) == 0 amplitude = amplitude[] end
+    amplitude = convert(Array, amplitude) # if a gpu array convert back to gpu
+    if ndims(amplitude) == 0
+        amplitude = amplitude[]
+    end
     amplitude
 end
 
 """Map over items as placeholder for more complicated contexts"""
-ctxmap(ctx::QXContext, f, it) = map(f, it)
+ctxmap(f, ctx::QXContext, items) = map(f, items)
 
 """Simple gather as placeholder for distributed contexts"""
 ctxgather(ctx::QXContext, items) = items
 
 """Simple gather as placeholder for distributed contexts"""
-ctxfilter(ctx::QXContext, f, items) = filter(f, items)
-
-"""Simple gather as placeholder for distributed contexts"""
-ctxreduce(ctx::QXContext, f, items) = reduce(f, items)
+ctxreduce(f, ctx::QXContext, items) = reduce(f, items)

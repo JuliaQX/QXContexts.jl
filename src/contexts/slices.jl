@@ -35,6 +35,18 @@ function SliceIterator(cg::ComputeGraph, args...; max_slices=nothing)
     SliceIterator(dims, args...)
 end
 
+"""
+    SliceIterator(si::SliceIterator, start::Int=1, end::Int=-1)
+
+Constructor to initialise instance from an existing instance.
+"""
+function SliceIterator(si::SliceIterator, start::Int=1, stop::Int=-1)
+    new_start = si.start + start - 1
+    new_stop = si.start + stop - 1
+    @assert new_stop <= length(si.iter) "Stop index out of range"
+    SliceIterator(si.iter, new_start, new_stop)
+end
+
 """Implement required iterator interface functions"""
 
 Base.iterate(a::SliceIterator) = length(a) == 0 ? nothing : (Int[Tuple(a.iter[a.start])...], a.start)
