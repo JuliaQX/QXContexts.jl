@@ -200,7 +200,8 @@ Base.eltype(::QXContext{T}) where T = eltype(T)
 Given a bitstring, set the open bonds to values so contracting the network will
 calculate the amplitude of this bitstring
 """
-function set_open_bonds!(ctx::QXContext, bitstring::String)
+function set_open_bonds!(ctx::QXContext, bitstring::String="")
+    if bitstring == "" bitstring = "0"^length(ctx.output_dims) end
     @assert length(bitstring) == length(ctx.output_dims) "Bitstring length must match nubmer of outputs"
     for (i, key) in enumerate(keys(ctx.output_dims)) ctx[key] = parse(Int, bitstring[i]) end
 end
