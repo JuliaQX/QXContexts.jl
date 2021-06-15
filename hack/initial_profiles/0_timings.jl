@@ -23,8 +23,9 @@ function main(args)
     set_open_bonds!(ctx_gpu)
     t = @elapsed CUDA.@sync begin ctx_gpu() end # run to ensure all is precompiled
     @info "GPU warmup ran in $t" 
-    b = @benchmark CUDA.@sync $(ctx_gpu)() # benchmark run
+    b = @benchmark CUDA.@sync begin $(ctx_gpu)() end # benchmark run
     @show b
+    nothing
 end
 
 main(ARGS)
