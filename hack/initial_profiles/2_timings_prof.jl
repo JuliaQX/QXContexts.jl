@@ -13,9 +13,12 @@ function main(args)
     # get time on gpu
     ctx_gpu = QXContext{CuArray{ComplexF32}}(cg)
     set_open_bonds!(ctx_gpu)
-    t = @elapsed CUDA.@sync begin ctx_gpu() end # run to ensure all is precompiled
+    # run to ensure all is precompiled
+    t = NVTX.@range "Warm up" begin @elapsed ctx_gpu() end
     @info "GPU warmup ran in $t" 
-    CUDA.@profile CUDA.@sync begin ctx_gpu() end
+    NVTX.@range "Run iteration" begin
+        ctx_gpu()
+    end
     nothing
 end
 
