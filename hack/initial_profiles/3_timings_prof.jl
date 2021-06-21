@@ -5,8 +5,8 @@ using QXContexts
 
 function main(args)
     file_path  = @__DIR__
-    dsl_file   = joinpath(dirname(dirname(file_path)), "examples/ghz/ghz_5.qx")
-    input_file = joinpath(dirname(dirname(file_path)), "examples/ghz/ghz_5.jld2")
+    dsl_file   = joinpath(dirname(dirname(file_path)), "examples/rqc/rqc_5_5_32.qx")
+    input_file = joinpath(dirname(dirname(file_path)), "examples/rqc/rqc_5_5_32.jld2")
 
     cg, _ = parse_dsl_files(dsl_file, input_file)
  

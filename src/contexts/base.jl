@@ -33,6 +33,7 @@ using QXContexts.ComputeGraphs
 using TimerOutputs
 using OMEinsum
 using DataStructures
+using CUDA
 
 export gettensor, settensor!, set_open_bonds!, set_slice_vals!
 export AbstractContext, QXContext, compute_amplitude!
@@ -53,16 +54,16 @@ function (c::ContractCommand)(ctx::AbstractContext)
     left_idxs = Tuple(c.left_idxs)
     right_idxs = Tuple(c.right_idxs)
 
-    @timeit_debug timer_output "DSL_ncon" begin
-        @debug "ncon DSL command: $(c.output_name)[$(output_idxs)] = $(c.left_name)[$(c.left_idxs)] * $(c.right_name)[$(c.right_idxs)]"
-        @debug "ncon shapes: left_size=$(size(gettensor(ctx, c.left_name))), right_size=$(size(gettensor(ctx, c.right_name)))"
+    @debug "ncon DSL command: $(c.output_name)[$(output_idxs)] = $(c.left_name)[$(c.left_idxs)] * $(c.right_name)[$(c.right_idxs)]"
+    @debug "ncon shapes: left_size=$(size(gettensor(ctx, c.left_name))), right_size=$(size(gettensor(ctx, c.right_name)))"
+    NVTX.@range "NCON $(c.output_name)" begin
         settensor!(ctx, EinCode((left_idxs, right_idxs), output_idxs)(gettensor(ctx, c.left_name), gettensor(ctx, c.right_name)), c.output_name)
     end
     nothing
 end
 
-(c::LoadCommand)(ctx::AbstractContext) = settensor!(ctx, gettensor(ctx, c.label), c.name)
-(c::SaveCommand)(ctx::AbstractContext) = settensor!(ctx, gettensor(ctx, c.label), c.name)
+(c::LoadCommand)(ctx::AbstractContext) = NVTX.@range "Load $(c.name)" begin settensor!(ctx, gettensor(ctx, c.label), c.name) end
+(c::SaveCommand)(ctx::AbstractContext) = NVTX.@range "Save $(c.name)" begin settensor!(ctx, gettensor(ctx, c.label), c.name) end
 
 """
     (c::ReshapeCommand)(ctx::AbstractContext)
@@ -85,7 +86,7 @@ end
 Execute the given view command using provided context
 """
 function (c::ViewCommand)(ctx::AbstractContext)
-    @timeit_debug timer_output "DSL_view" begin
+    NVTX.@range "View on $(c.output_sym)" begin
         bond_val = haskey(ctx, c.slice_sym) ? ctx[c.slice_sym] : nothing
         if bond_val !== nothing
             dims = size(gettensor(ctx, c.input_sym))
@@ -107,13 +108,15 @@ end
 Execute the given output command using provided context
 """
 function (c::OutputCommand)(ctx::AbstractContext)
-    sym = Symbol("o$(c.idx)")
-    @assert haskey(ctx, sym) "Output $sym not set in context"
-    out_val = ctx[sym]
-    data_array = zeros(ctx, c.dim)
-    data_array[out_val + 1] = 1.
-    settensor!(ctx, data_array, c.name)
-    @debug "$(c.name) = $(data_array)"
+    NVTX.@range "Output $(c.idx)" begin
+        sym = Symbol("o$(c.idx)")
+        @assert haskey(ctx, sym) "Output $sym not set in context"
+        out_val = ctx[sym]
+        data_array = zeros(ctx, c.dim)
+        data_array[out_val + 1] = 1.
+        settensor!(ctx, data_array, c.name)
+        @debug "$(c.name) = $(data_array)"
+    end
 end
 
 ##########################################################################################
