@@ -7,6 +7,7 @@ tensor and parameter storage
 Each context implements the following functions to access tensor and parameter information:
 gettensor(ctx, sym): get the tensor for the given symbol
 settensor!(ctx, value, sym): set the tensor data for the given symbol
+deletetensor!(ctx, sym): delete the tensor after it is no longer required
 Base.getindex(ctx, sym): get the parameter value corresponding to given symbol
 Base.setindex!(ctx, value, sym): set the parameter value corresponding to given symbol
 Base.haskey(ctx, sym): Check if the parameter key exists
@@ -59,11 +60,22 @@ function (c::ContractCommand)(ctx::AbstractContext)
     NVTX.@range "NCON $(c.output_name)" begin
         settensor!(ctx, EinCode((left_idxs, right_idxs), output_idxs)(gettensor(ctx, c.left_name), gettensor(ctx, c.right_name)), c.output_name)
     end
+    deletetensor!(ctx, c.left_name)
+    deletetensor!(ctx, c.right_name)
     nothing
 end
 
-(c::LoadCommand)(ctx::AbstractContext) = NVTX.@range "Load $(c.name)" begin settensor!(ctx, gettensor(ctx, c.label), c.name) end
-(c::SaveCommand)(ctx::AbstractContext) = NVTX.@range "Save $(c.name)" begin settensor!(ctx, gettensor(ctx, c.label), c.name) end
+function (c::LoadCommand)(ctx::AbstractContext)
+    NVTX.@range "Load $(c.name)" begin
+        settensor!(ctx, copy(gettensor(ctx, c.label)), c.name)
+    end
+end
+
+function (c::SaveCommand)(ctx::AbstractContext)
+    NVTX.@range "Save $(c.name)" begin
+        settensor!(ctx, copy(gettensor(ctx, c.label)), c.name)
+    end
+end
 
 """
     (c::ReshapeCommand)(ctx::AbstractContext)
@@ -112,9 +124,7 @@ function (c::OutputCommand)(ctx::AbstractContext)
         sym = Symbol("o$(c.idx)")
         @assert haskey(ctx, sym) "Output $sym not set in context"
         out_val = ctx[sym]
-        data_array = zeros(ctx, c.dim)
-        data_array[out_val + 1] = 1.
-        settensor!(ctx, data_array, c.name)
+        settensor!(ctx, copy(gettensor(ctx, Symbol("output_$out_val"))), c.name)
         @debug "$(c.name) = $(data_array)"
     end
 end
@@ -145,6 +155,13 @@ function QXContext{T}(cg::ComputeGraph) where T
     end
     slice_dims = convert(OrderedDict, params(cg, ViewCommand))
     output_dims = convert(OrderedDict, params(cg, OutputCommand))
+    dims = collect(values(output_dims))
+    @assert all(dims .== dims[1]) "Multiple output dimensions not supported"
+    for d in 1:dims[1]
+        t = zeros(eltype(T), dims[1])
+        t[d] = 1.
+        tensors[Symbol("output_$(d-1)")] = convert(T, t)
+    end
     sort!(slice_dims)
     sort!(output_dims)
     QXContext{T}(Dict{Symbol, Int}(), tensors, cg, slice_dims, output_dims)
@@ -171,6 +188,19 @@ function settensor!(ctx::QXContext, value, sym)
     ctx.tensors[sym] = value
 end
 
+"""
+    deletetensor!(ctx::QXContext, sym)
+
+Function to delte tensors by key
+"""
+function deletetensor!(ctx::QXContext, sym)
+    #if ctx.tensors[sym] isa CuArray
+    #    CUDA.unsafe_free!(ctx.tensors[sym])
+    #end
+    delete!(ctx.tensors, sym)
+end
+
+
 """Implement has key to check if parameter by this name present"""
 Base.haskey(ctx::QXContext, sym) = haskey(ctx.params, sym)
 
@@ -193,7 +223,7 @@ function Base.setindex!(ctx::QXContext, value, sym)
     ctx.params[sym] = value
 end
 
-Base.zeros(::QXContext{T}, size) where T = zeros(eltype(T), size)
+Base.zeros(::QXContext{T}, size) where T = convert(T, zeros(eltype(T), size))
 Base.zero(::QXContext{T}) where T = zero(eltype(T))
 Base.eltype(::QXContext{T}) where T = eltype(T)
 

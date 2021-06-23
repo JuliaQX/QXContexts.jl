@@ -16,7 +16,7 @@ function main(args)
     # run to ensure all is precompiled
     t = NVTX.@range "Warm up" begin @elapsed ctx_gpu() end
     @info "GPU warmup ran in $t" 
-    NVTX.@range "Run iteration" begin
+    CUDA.@profile NVTX.@range "Run iteration" begin
         ctx_gpu()
     end
     nothing
