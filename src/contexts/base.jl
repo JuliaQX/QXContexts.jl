@@ -67,13 +67,13 @@ end
 
 function (c::LoadCommand)(ctx::AbstractContext)
     NVTX.@range "Load $(c.name)" begin
-        settensor!(ctx, copy(gettensor(ctx, c.label)), c.name)
+        settensor!(ctx, gettensor(ctx, c.label), c.name)
     end
 end
 
 function (c::SaveCommand)(ctx::AbstractContext)
     NVTX.@range "Save $(c.name)" begin
-        settensor!(ctx, copy(gettensor(ctx, c.label)), c.name)
+        settensor!(ctx, gettensor(ctx, c.label), c.name)
     end
 end
 
@@ -124,7 +124,7 @@ function (c::OutputCommand)(ctx::AbstractContext)
         sym = Symbol("o$(c.idx)")
         @assert haskey(ctx, sym) "Output $sym not set in context"
         out_val = ctx[sym]
-        settensor!(ctx, copy(gettensor(ctx, Symbol("output_$out_val"))), c.name)
+        settensor!(ctx, gettensor(ctx, Symbol("output_$out_val")), c.name)
         @debug "$(c.name) = $(data_array)"
     end
 end
