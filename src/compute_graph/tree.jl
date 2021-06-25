@@ -77,11 +77,11 @@ output(cg::ComputeGraph) = output(cg.root)
 ###########################################################################
 
 """
-    build_tree(cmds::Vector{AbstractCommand})
+    build_tree(cmds::Vector{<: AbstractCommand})
 
 Function to construct a tree from a list of commands
 """
-function build_tree(cmds::Vector{AbstractCommand})
+function build_tree(cmds::Vector{<: AbstractCommand})
     nodes = Dict{Symbol, ComputeNode}()
 
     for op in cmds

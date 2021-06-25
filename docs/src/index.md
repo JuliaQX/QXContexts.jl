@@ -28,7 +28,7 @@ Pkg.add(url="https://github.com/JuliaQX/QXContexts.jl")
 
 ## Custom system image
 
-Using a custom system image with required objects compiled in can greatly reduce the latency when starting computations.
+Using a custom system image can greatly reduce the latency when starting computations.
 To build a custom system image one can run the following commands from the Julia REPL
 
 ```
@@ -41,7 +41,14 @@ This will have a different suffix depending on the platform (`.so` for Linux sys
 To use the system image the `--sysimage` (`-J` for short) can be used providing the path to the system image. For example
 
 ```
-julis --project --sysimage=JuliaSysimage.so
+julia --project --sysimage=JuliaSysimage.so
+```
+
+For development it is useful to use a system image without any of the functions from QXContexts itself begin compiled.
+To do this one can call the compile function with `dev` set to true as
+
+```
+QXContexts.compile(dev=true)
 ```
 
 # Example usage
@@ -51,7 +58,10 @@ in the `examples/ghz` folder.
 This example can be run directly using the `examples/ghz_example.jl` script or this can be run using the CLI `bin/qxrun.jl` script with the following command
 
 ```
-julia --project bin/qxrun.jl -d examples/ghz/ghz_5.qx -i examples/ghz/ghz_5.jld2 -p examples/ghz/ghz_5.yml -o examples/ghz/out.jld2
+julia --project bin/qxrun.jl -d examples/ghz/ghz_5.qx\
+                             -i examples/ghz/ghz_5.jld2\
+                             -p examples/ghz/ghz_5.yml\
+                             -o examples/ghz/out.jld2
 ```
 
 where the `-d`, `-i` and `-p` switches describe the DSL file, input data file and parameter file to use respectively. The `-o` switch refers to the output file. If all three files have the same prefix, then it is only necessary to provide the name of the dsl file so the example could also be run with the command
@@ -88,7 +98,7 @@ This generates very verbose output so care should be taking when using this for 
 
 ## Enable logging
 
-To log debug and and performance information to files QXContexts has 3 logger-models:
+To log debug and performance information to files QXContexts has 3 logger-models:
 
 - QXLogger: the default stdout logger: useful for single node, single process logging (interactive)
 - QXLoggerMPIShared: an MPI-IO shared-file logger: all MPI ranks share a single file for writing their respective logs; blocking.
@@ -121,6 +131,9 @@ mpiexecjl --project -n 4 julia bin/qxrun.jl -d examples/ghz/ghz_5.qx -o examples
 
 Here the four processes are split between two communicators, each with two processes.
 
+# Using GPUs
+
+On systems with NVIDIA GPUs, these can be used by passing a `--gpu` (or `-g`) flag to `qxrun.jl` on the command line.
 
 # Contributing
 Contributions from users are welcome and we encourage users to open issues and submit merge/pull requests for any problems or feature requests they have. The

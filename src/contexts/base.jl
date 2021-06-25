@@ -7,6 +7,7 @@ tensor and parameter storage
 Each context implements the following functions to access tensor and parameter information:
 gettensor(ctx, sym): get the tensor for the given symbol
 settensor!(ctx, value, sym): set the tensor data for the given symbol
+deletetensor!(ctx, sym): delete the tensor after it is no longer required
 Base.getindex(ctx, sym): get the parameter value corresponding to given symbol
 Base.setindex!(ctx, value, sym): set the parameter value corresponding to given symbol
 Base.haskey(ctx, sym): Check if the parameter key exists
@@ -33,8 +34,9 @@ using QXContexts.ComputeGraphs
 using TimerOutputs
 using OMEinsum
 using DataStructures
+using CUDA
 
-export gettensor, settensor!, set_open_bonds!, set_slice_vals!
+export gettensor, settensor!, deletetensor!, set_open_bonds!, set_slice_vals!
 export AbstractContext, QXContext, compute_amplitude!
 export ctxmap, ctxgather, ctxreduce
 
@@ -53,16 +55,37 @@ function (c::ContractCommand)(ctx::AbstractContext)
     left_idxs = Tuple(c.left_idxs)
     right_idxs = Tuple(c.right_idxs)
 
-    @timeit_debug timer_output "DSL_ncon" begin
-        @debug "ncon DSL command: $(c.output_name)[$(output_idxs)] = $(c.left_name)[$(c.left_idxs)] * $(c.right_name)[$(c.right_idxs)]"
-        @debug "ncon shapes: left_size=$(size(gettensor(ctx, c.left_name))), right_size=$(size(gettensor(ctx, c.right_name)))"
+    @debug "ncon DSL command: $(c.output_name)[$(output_idxs)] = $(c.left_name)[$(c.left_idxs)] * $(c.right_name)[$(c.right_idxs)]"
+    @debug "ncon shapes: left_size=$(size(gettensor(ctx, c.left_name))), right_size=$(size(gettensor(ctx, c.right_name)))"
+    @nvtx_range "NCON $(c.output_name)" begin
         settensor!(ctx, EinCode((left_idxs, right_idxs), output_idxs)(gettensor(ctx, c.left_name), gettensor(ctx, c.right_name)), c.output_name)
     end
+    deletetensor!(ctx, c.left_name)
+    deletetensor!(ctx, c.right_name)
     nothing
 end
 
-(c::LoadCommand)(ctx::AbstractContext) = settensor!(ctx, gettensor(ctx, c.label), c.name)
-(c::SaveCommand)(ctx::AbstractContext) = settensor!(ctx, gettensor(ctx, c.label), c.name)
+"""
+    (c::LoadCommand)(ctx::AbstractContext)
+
+Generic implementation of load command
+"""
+function (c::LoadCommand)(ctx::AbstractContext)
+    @nvtx_range "Load $(c.label)" begin
+        settensor!(ctx, gettensor(ctx, c.label), c.name)
+    end
+end
+
+"""
+    (c::SaveCommand)(ctx::AbstractContext)
+
+Generic implementation of save command
+"""
+function (c::SaveCommand)(ctx::AbstractContext)
+    @nvtx_range "Load $(c.label)" begin
+        settensor!(ctx, gettensor(ctx, c.label), c.name)
+    end
+end
 
 """
     (c::ReshapeCommand)(ctx::AbstractContext)
@@ -73,7 +96,9 @@ function (c::ReshapeCommand)(ctx::AbstractContext)
     @timeit_debug timer_output "DSL_reshape" begin
         tensor_dims = size(gettensor(ctx, c.input))
         new_dims = [prod([tensor_dims[y] for y in x]) for x in c.dims]
-        settensor!(ctx, reshape(gettensor(ctx, c.input), new_dims...), c.output)
+        @nvtx_range "Reshape $(c.output)" begin
+            settensor!(ctx, reshape(gettensor(ctx, c.input), new_dims...), c.output)
+        end
     @debug "Reshape DSL command: name=$(c.input)($(tensor_dims)) -> $(c.output)($(new_dims))"
     end
     nothing
@@ -87,15 +112,17 @@ Execute the given view command using provided context
 function (c::ViewCommand)(ctx::AbstractContext)
     @timeit_debug timer_output "DSL_view" begin
         bond_val = haskey(ctx, c.slice_sym) ? ctx[c.slice_sym] : nothing
-        if bond_val !== nothing
-            dims = size(gettensor(ctx, c.input_sym))
-            view_index_list = [i == c.bond_index ? UnitRange(bond_val, bond_val) : UnitRange(1, dims[i]) for i in 1:length(dims)]
-            new_tensor = @view gettensor(ctx, c.input_sym)[view_index_list...]
-            settensor!(ctx, new_tensor, c.output_sym)
-            @debug "view DSL command: $(c.output_sym) = $(c.input_sym)[$(view_index_list)]"
-        else
-            settensor!(ctx, gettensor(ctx, c.input_sym), c.output_sym)
-            @debug "view DSL command: $(c.output_sym) = $(c.input_sym)"
+        @nvtx_range "View $(c.output_sym)" begin
+            if bond_val !== nothing
+                dims = size(gettensor(ctx, c.input_sym))
+                view_index_list = [i == c.bond_index ? UnitRange(bond_val, bond_val) : UnitRange(1, dims[i]) for i in 1:length(dims)]
+                new_tensor = @view gettensor(ctx, c.input_sym)[view_index_list...]
+                settensor!(ctx, new_tensor, c.output_sym)
+                @debug "view DSL command: $(c.output_sym) = $(c.input_sym)[$(view_index_list)]"
+            else
+                settensor!(ctx, gettensor(ctx, c.input_sym), c.output_sym)
+                @debug "view DSL command: $(c.output_sym) = $(c.input_sym)"
+            end
         end
     end
     nothing
@@ -107,13 +134,13 @@ end
 Execute the given output command using provided context
 """
 function (c::OutputCommand)(ctx::AbstractContext)
-    sym = Symbol("o$(c.idx)")
-    @assert haskey(ctx, sym) "Output $sym not set in context"
-    out_val = ctx[sym]
-    data_array = zeros(ctx, c.dim)
-    data_array[out_val + 1] = 1.
-    settensor!(ctx, data_array, c.name)
-    @debug "$(c.name) = $(data_array)"
+    @nvtx_range "Output $(c.idx)" begin
+        sym = Symbol("o$(c.idx)")
+        @assert haskey(ctx, sym) "Output $sym not set in context"
+        out_val = ctx[sym]
+        settensor!(ctx, gettensor(ctx, Symbol("output_$out_val")), c.name)
+        @debug "$(c.name) = $(data_array)"
+    end
 end
 
 ##########################################################################################
@@ -142,6 +169,15 @@ function QXContext{T}(cg::ComputeGraph) where T
     end
     slice_dims = convert(OrderedDict, params(cg, ViewCommand))
     output_dims = convert(OrderedDict, params(cg, OutputCommand))
+    dims = collect(values(output_dims))
+    if length(dims) > 0
+        @assert all(dims .== dims[1]) "Multiple output dimensions not supported"
+        for d in 1:dims[1]
+            t = zeros(eltype(T), dims[1])
+            t[d] = 1.
+            tensors[Symbol("output_$(d-1)")] = convert(T, t)
+        end
+    end
     sort!(slice_dims)
     sort!(output_dims)
     QXContext{T}(Dict{Symbol, Int}(), tensors, cg, slice_dims, output_dims)
@@ -168,6 +204,14 @@ function settensor!(ctx::QXContext, value, sym)
     ctx.tensors[sym] = value
 end
 
+"""
+    deletetensor!(ctx::QXContext, sym)
+Function to delte tensors by key
+"""
+function deletetensor!(ctx::QXContext, sym)
+    delete!(ctx.tensors, sym)
+end
+
 """Implement has key to check if parameter by this name present"""
 Base.haskey(ctx::QXContext, sym) = haskey(ctx.params, sym)
 
@@ -190,7 +234,7 @@ function Base.setindex!(ctx::QXContext, value, sym)
     ctx.params[sym] = value
 end
 
-Base.zeros(::QXContext{T}, size) where T = zeros(eltype(T), size)
+Base.zeros(::QXContext{T}, size) where T = convert(T, zeros(eltype(T), size))
 Base.zero(::QXContext{T}) where T = zero(eltype(T))
 Base.eltype(::QXContext{T}) where T = eltype(T)
 
@@ -200,7 +244,8 @@ Base.eltype(::QXContext{T}) where T = eltype(T)
 Given a bitstring, set the open bonds to values so contracting the network will
 calculate the amplitude of this bitstring
 """
-function set_open_bonds!(ctx::QXContext, bitstring::String)
+function set_open_bonds!(ctx::QXContext, bitstring::String="")
+    if bitstring == "" bitstring = "0"^length(ctx.output_dims) end
     @assert length(bitstring) == length(ctx.output_dims) "Bitstring length must match nubmer of outputs"
     for (i, key) in enumerate(keys(ctx.output_dims)) ctx[key] = parse(Int, bitstring[i]) end
 end
