@@ -1,5 +1,7 @@
 module Contexts
 
+# some cuda related utilities
+include("cuda.jl")
 # data structures for iterating over slices
 include("slices.jl")
 # context interface and QXContext implementation

@@ -48,7 +48,12 @@ function initialise_sampler(dsl_file::String,
     cg, _ = parse_dsl_files(dsl_file, input_file)
 
     # Create a context to execute the commands in
-    T = !use_gpu ? Array{elt} : CuArray{elt}
+    T = if use_gpu
+        @assert CUDA.functional() "CUDA installation is not functional, ensure you have a GPU and appropriate drivers"
+        CuArray{elt}
+    else
+        Array{elt}
+    end
     ctx = QXContext{T}(cg)
     if use_mpi
         ctx = QXMPIContext(ctx, sub_comm_size=sub_comm_size)
