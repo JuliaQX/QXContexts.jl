@@ -75,7 +75,7 @@ script called `examine_output.jl` is provided that allows examination of this ou
 can be used as
 
 ```
-julia --project bin/examing_output.jl examples/ghz/out.jld2
+julia --project bin/examine_output.jl examples/ghz/out.jld2
 ```
 
 ## Enable timing
