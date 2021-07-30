@@ -31,7 +31,6 @@ ctxgather(ctx, items): Gathers all items
 """
 
 using QXContexts.ComputeGraphs
-using TimerOutputs
 using OMEinsum
 using DataStructures
 using CUDA
@@ -93,14 +92,12 @@ end
 Implementation of reshape command
 """
 function (c::ReshapeCommand)(ctx::AbstractContext)
-    @timeit_debug timer_output "DSL_reshape" begin
-        tensor_dims = size(gettensor(ctx, c.input))
-        new_dims = [prod([tensor_dims[y] for y in x]) for x in c.dims]
-        @nvtx_range "Reshape $(c.output)" begin
-            settensor!(ctx, reshape(gettensor(ctx, c.input), new_dims...), c.output)
-        end
-    @debug "Reshape DSL command: name=$(c.input)($(tensor_dims)) -> $(c.output)($(new_dims))"
+    tensor_dims = size(gettensor(ctx, c.input))
+    new_dims = [prod([tensor_dims[y] for y in x]) for x in c.dims]
+    @nvtx_range "Reshape $(c.output)" begin
+        settensor!(ctx, reshape(gettensor(ctx, c.input), new_dims...), c.output)
     end
+    @debug "Reshape DSL command: name=$(c.input)($(tensor_dims)) -> $(c.output)($(new_dims))"
     nothing
 end
 
@@ -110,19 +107,17 @@ end
 Execute the given view command using provided context
 """
 function (c::ViewCommand)(ctx::AbstractContext)
-    @timeit_debug timer_output "DSL_view" begin
-        bond_val = haskey(ctx, c.slice_sym) ? ctx[c.slice_sym] : nothing
-        @nvtx_range "View $(c.output_sym)" begin
-            if bond_val !== nothing
-                dims = size(gettensor(ctx, c.input_sym))
-                view_index_list = [i == c.bond_index ? UnitRange(bond_val, bond_val) : UnitRange(1, dims[i]) for i in 1:length(dims)]
-                new_tensor = @view gettensor(ctx, c.input_sym)[view_index_list...]
-                settensor!(ctx, new_tensor, c.output_sym)
-                @debug "view DSL command: $(c.output_sym) = $(c.input_sym)[$(view_index_list)]"
-            else
-                settensor!(ctx, gettensor(ctx, c.input_sym), c.output_sym)
-                @debug "view DSL command: $(c.output_sym) = $(c.input_sym)"
-            end
+    bond_val = haskey(ctx, c.slice_sym) ? ctx[c.slice_sym] : nothing
+    @nvtx_range "View $(c.output_sym)" begin
+        if bond_val !== nothing
+            dims = size(gettensor(ctx, c.input_sym))
+            view_index_list = [i == c.bond_index ? UnitRange(bond_val, bond_val) : UnitRange(1, dims[i]) for i in 1:length(dims)]
+            new_tensor = @view gettensor(ctx, c.input_sym)[view_index_list...]
+            settensor!(ctx, new_tensor, c.output_sym)
+            @debug "view DSL command: $(c.output_sym) = $(c.input_sym)[$(view_index_list)]"
+        else
+            settensor!(ctx, gettensor(ctx, c.input_sym), c.output_sym)
+            @debug "view DSL command: $(c.output_sym) = $(c.input_sym)"
         end
     end
     nothing
@@ -139,7 +134,7 @@ function (c::OutputCommand)(ctx::AbstractContext)
         @assert haskey(ctx, sym) "Output $sym not set in context"
         out_val = ctx[sym]
         settensor!(ctx, gettensor(ctx, Symbol("output_$out_val")), c.name)
-        @debug "$(c.name) = $(data_array)"
+        @debug "output DSL command: $(c.name) = o$(c.idx)"
     end
 end
 

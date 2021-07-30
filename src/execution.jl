@@ -8,11 +8,11 @@ using QXContexts.Param
 using QXContexts.ComputeGraphs
 using QXContexts.Sampling
 
-const timer_output = TimerOutput()
-if haskey(ENV, "QXRUN_TIMER")
-    timeit_debug_enabled() = return true # Function fails to be defined by enable_debug_timings
-    TimerOutputs.enable_debug_timings(Execution)
-end
+# const timer_output = TimerOutput()
+# if haskey(ENV, "QXRUN_TIMER")
+#     timeit_debug_enabled() = return true # Function fails to be defined by enable_debug_timings
+#     TimerOutputs.enable_debug_timings(Execution)
+# end
 
 """
     write_results(results, output_file)
@@ -45,7 +45,7 @@ function initialise_sampler(dsl_file::String,
                             use_gpu::Bool=false,
                             elt::Type=ComplexF32)
     # read dsl file of commands and data file with initial tensors
-    cg, _ = parse_dsl_files(dsl_file, input_file)
+    @timeit "Parse input files" cg, _ = parse_dsl_files(dsl_file, input_file)
 
     # Create a context to execute the commands in
     T = if use_gpu
@@ -54,9 +54,11 @@ function initialise_sampler(dsl_file::String,
     else
         Array{elt}
     end
-    ctx = QXContext{T}(cg)
-    if use_mpi
-        ctx = QXMPIContext(ctx, sub_comm_size=sub_comm_size)
+    @timeit "Create Context" begin
+        ctx = QXContext{T}(cg)
+        if use_mpi
+            ctx = QXMPIContext(ctx, sub_comm_size=sub_comm_size)
+        end
     end
 
     # read sampler parameters from parameter file
@@ -64,7 +66,7 @@ function initialise_sampler(dsl_file::String,
 
     # Create a sampler to produce bitstrings to get amplitudes for and a variable to store
     # the results.
-    create_sampler(ctx, sampler_args)
+    @timeit "Create sampler" create_sampler(ctx, sampler_args)
 end
 
 """
@@ -94,14 +96,14 @@ function execute(dsl_file::String,
     if param_file === nothing
         param_file = splitext(dsl_file)[1] * ".yml"
     end
-    sampler = initialise_sampler(dsl_file, input_file, param_file;
+    @timeit "Init sampler" sampler = initialise_sampler(dsl_file, input_file, param_file;
                                  kwargs...)
 
-    results = sampler(max_amplitudes=max_amplitudes,
-                      max_slices=max_slices)
+    @timeit "Simulation" results = sampler(max_amplitudes=max_amplitudes,
+                                           max_slices=max_slices)
 
     if output_file != "" && results !== nothing
-        write_results(results, output_file)
+        @timeit "Write results" write_results(results, output_file)
     end
     results
 end
