@@ -81,10 +81,10 @@ julia --project bin/examine_output.jl examples/ghz/out.jld2
 
 ## Enable timing
 
-To get timing information on the different sections of the code the code has been instrumented with [TimerOutputs.jl](https://github.com/KristofferC/TimerOutputs.jl). To enable this one can set the `QXRUN_TIMER` variable to `1`. For example
+To get timing information on the different sections of the code the code has been instrumented with [TimerOutputs.jl](https://github.com/KristofferC/TimerOutputs.jl). To enable this one can add the `--timings` (or `-t`) switch to the CLI command.
 
 ```
-QXRUN_TIMER=1 julia --project bin/qxrun.jl -d examples/ghz/ghz_5.qx -o examples/ghz/out.jld2
+julia --project bin/qxrun.jl -d examples/ghz/ghz_5.qx -o examples/ghz/out.jld2 -t
 ```
 
 ## Enable debugging

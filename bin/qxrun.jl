@@ -1,6 +1,7 @@
 # using MPI
 using QXContexts
 using ArgParse
+using TimerOutputs
 
 """
     parse_commandline(ARGS)
@@ -45,9 +46,9 @@ function parse_commandline(ARGS)
         "--gpu", "-g"
             help = "Use GPU if available"
             action = :store_true
-        "-v"
-            help = "Enable verbose output"
-            action = :count_invocations
+        "--timings", "-t"
+            help = "Enable output of timings with warmup run"
+            action = :store_true
     end
     return parse_args(ARGS, s)
 end
@@ -69,12 +70,22 @@ function main(ARGS)
     sub_comm_size  = args["sub-comm-size"]
     use_mpi        = args["mpi"]
     use_gpu        = args["gpu"]
-    verbose        = args["v"]
+    timings        = args["timings"]
 
     results = execute(dsl_file, input_file, param_file, output_file;
                       use_mpi=use_mpi, sub_comm_size=sub_comm_size,
                       use_gpu=use_gpu, max_amplitudes=number_amplitudes,
-                      max_slices=number_slices)
+                      max_slices=number_slices,
+                      timings=timings)
+
+    if timings
+        reset_timer!()
+        results = execute(dsl_file, input_file, param_file, output_file;
+                          use_mpi=use_mpi, sub_comm_size=sub_comm_size,
+                          use_gpu=use_gpu, max_amplitudes=number_amplitudes,
+                          max_slices=number_slices,
+                          timings=timings)
+    end
 end
 
 
