@@ -46,8 +46,8 @@ function parse_commandline(ARGS)
         "--gpu", "-g"
             help = "Use GPU if available"
             action = :store_true
-        "--timing", "-t"
-            help = "Enable timing with warmup run"
+        "--timings", "-t"
+            help = "Enable output of timings with warmup run"
             action = :store_true
     end
     return parse_args(ARGS, s)
@@ -70,23 +70,21 @@ function main(ARGS)
     sub_comm_size  = args["sub-comm-size"]
     use_mpi        = args["mpi"]
     use_gpu        = args["gpu"]
-    timing        = args["timing"]
+    timings        = args["timings"]
 
-    @timeit "Execute" results = execute(dsl_file, input_file, param_file, output_file;
-                                        use_mpi=use_mpi, sub_comm_size=sub_comm_size,
-                                        use_gpu=use_gpu, max_amplitudes=number_amplitudes,
-                                        max_slices=number_slices)
+    results = execute(dsl_file, input_file, param_file, output_file;
+                      use_mpi=use_mpi, sub_comm_size=sub_comm_size,
+                      use_gpu=use_gpu, max_amplitudes=number_amplitudes,
+                      max_slices=number_slices,
+                      timings=timings)
 
-    if timing
-        @info("Timing including compilation")
-        print_timer()
+    if timings
         reset_timer!()
-        @timeit "Execute" results = execute(dsl_file, input_file, param_file, output_file;
-                                        use_mpi=use_mpi, sub_comm_size=sub_comm_size,
-                                        use_gpu=use_gpu, max_amplitudes=number_amplitudes,
-                                        max_slices=number_slices)
-        @info("Timing after compilation")
-        print_timer()
+        results = execute(dsl_file, input_file, param_file, output_file;
+                          use_mpi=use_mpi, sub_comm_size=sub_comm_size,
+                          use_gpu=use_gpu, max_amplitudes=number_amplitudes,
+                          max_slices=number_slices,
+                          timings=timings)
     end
 end
 

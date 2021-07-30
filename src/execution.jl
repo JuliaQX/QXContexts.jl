@@ -76,6 +76,7 @@ end
             output_file::String="";
             max_amplitudes::Union{Int, Nothing}=nothing,
             max_slices::Union{Int, Nothing}=nothing,
+            timings::Bool=false,
             kwargs...)
 
 Main entry point for running calculations. Loads input data, runs computations and
@@ -87,6 +88,7 @@ function execute(dsl_file::String,
                  output_file::String="";
                  max_amplitudes::Union{Int, Nothing}=nothing,
                  max_slices::Union{Int, Nothing}=nothing,
+                 timings::Bool=false,
                  kwargs...)
 
     if input_file === nothing
@@ -104,6 +106,9 @@ function execute(dsl_file::String,
 
     if output_file != "" && results !== nothing
         @timeit "Write results" write_results(results, output_file)
+        if timings
+            print_timer()
+        end
     end
     results
 end
