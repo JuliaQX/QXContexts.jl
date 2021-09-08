@@ -12,6 +12,8 @@ ENV JULIA_DEPOT_PATH /opt/julia
 
 RUN julia --project=. -e 'using Pkg; Pkg.instantiate();'
 
+RUN julia --project=. -e 'using Pkg; Pkg.add("FileIO"); Pkg.add("ArgParse"); Pkg.add("TimerOutputs");'
+
 RUN julia --project=. -e 'using Pkg; Pkg.build("QXContexts");'
 
 # run tests to verify they are working and to precompile
