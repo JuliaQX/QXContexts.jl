@@ -146,7 +146,7 @@ function (s::RejectionSampler)(;max_amplitudes=nothing, kwargs...)
             Np = N * abs(amp)^2
             s.fix_M || (M = max(Np, M))
         end
-        s.fix_M || (M = ctxreduceall(s.ctx, max, M))
+        s.fix_M || (M = ctxreduce(max, s.ctx, M))
 
         # Conduct a rejection step for each bitstring to correct the distribution of samples.
         for (bs, amp) in zip(bitstrings, amps)
@@ -206,7 +206,7 @@ function (s::UniformSampler)(;max_amplitudes=nothing, kwargs...)
     num_samples = max_amplitudes === nothing ? s.num_samples : max_amplitudes
 
     bs = random_bitstrings(s.rng, s.num_qubits, num_samples)
-    amps = ctxmap(s.ctx, x -> compute_amplitude!(s.ctx, x; kwargs...), bs)
+    amps = ctxmap(x -> compute_amplitude!(s.ctx, x; kwargs...), s.ctx, bs)
     amps = ctxgather(s.ctx, amps)
 
     (bs, amps)
@@ -225,5 +225,8 @@ struct Samples{T}
 end
 
 Samples() = Samples(DefaultDict{String, Int}(0), Dict{String, ComplexF32}())
+
+Base.length(s::Samples) = sum(values(s.bitstrings_counts))
+Base.unique(s::Samples) = keys(s.bitstrings_counts)
 
 end

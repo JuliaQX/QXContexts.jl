@@ -54,8 +54,8 @@ end
 """
     params(node::ComputeNode, optype::Type=Any)
 
-Compile all parameters from this and descendents with optional op type qualifier.
-This can be used to return only output or view parameters with
+Compile all parameters from this node and descendents with optional op type 
+qualifier. This can be used to return only output or view parameters with
 
 params(node, OutputCommand)
 
