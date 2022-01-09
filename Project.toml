@@ -1,7 +1,7 @@
 name = "QXContexts"
 uuid = "04c26001-d4a1-49d2-b090-1d469cf06784"
 authors = ["QuantEx team"]
-version = "0.3.0"
+version = "0.3.1"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
@@ -35,7 +35,7 @@ FileIO = "1.9"
 JLD2 = "0.4"
 Lazy = "0.15"
 MPI = "0.19"
-OMEinsum = "0.4, 0.6"
+OMEinsum = "< 0.6.8"
 PackageCompiler = "1.2"
 Reexport = "1"
 TestSetExtensions = "2.0"
