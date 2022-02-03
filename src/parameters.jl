@@ -1,6 +1,6 @@
 module Param
 
-export parse_parameters, SliceIterator
+export parse_parameters
 
 import YAML
 using  DataStructures

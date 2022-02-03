@@ -1,51 +1,40 @@
 module TestContexts
 
 using Test
-
 using QXContexts
 
 include("utils.jl")
 
-@testset "Test contexts module" begin
+@testset "Test Contraction contexts" begin
+    test_path = dirname(@__DIR__)
+    dsl_file = joinpath(test_path, "examples/ghz/ghz_5.qx")
+    data_file = joinpath(test_path, "examples/ghz/ghz_5.jld2")
 
-    @testset "Test SliceIterator" begin
-        dims = [2,3,4]
-        si = SliceIterator(dims)
-        @test length(si) == prod(dims)
-        @test si[1] == [1,1,1]
-        @test si[dims...] == [2,3,4]
+    cg, _ = parse_dsl_files(dsl_file, data_file)
+    conctx = QXContext(cg)
 
-        si = SliceIterator(dims, 1, 10)
-        @test length(si) == 10
+    # Test contraction
+    bitstring = Bool[0, 0, 0, 0, 0]
+    slice = CartesianIndex((1, 1))
+    amp = conctx(bitstring, slice)
 
-        si = SliceIterator(dims)
-        @test length(si) == prod(dims)
-        si2 = SliceIterator(si, 1, 5)
-        @test length(si2) == 5
+    # Test job fetching and storing results
+    jobs_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, CartesianIndex}}(32))
+    amps_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, ComplexF32}}(32))
+    for _ = 1:7 put!(jobs_queue, (bitstring, slice)) end
+    t = @async conctx(jobs_queue, amps_queue)
+    results = [take!(amps_queue) for _ = 1:7]
+    @test !isready(amps_queue)
 
-        si3 = SliceIterator(si2, 3, 5)
-        @test length(si3) == 3
-    end
+    # Test contraction task finishes when job queue closed.
+    @test !istaskdone(t)
+    close(jobs_queue)
+    @test istaskdone(t)
 
-    @testset "Test QXContext" begin
-        cg = ComputeGraph(build_tree(sample_cmds), deepcopy(sample_tensors))
-        ctx = QXContext(cg)
-
-        # contract without setting view parameters
-        set_open_bonds!(ctx, "0")
-        output_0 = ctx()
-        @test size(output_0) == (2,)
-
-        set_open_bonds!(ctx, "1")
-        output_1 = ctx()
-        @test size(output_1) == (2,)
-
-        # contract while summing over view parameters
-        @test compute_amplitude!(ctx, "0") ≈ output_0
-        @test compute_amplitude!(ctx, "1") ≈ output_1
-
-        @test compute_amplitude!(ctx, "1", max_slices=0) ≈ output_1
-    end
+    # contract while summing over view parameters
+    # @test compute_amplitude!(ctx, "0") ≈ output_0
+    # @test compute_amplitude!(ctx, "1") ≈ output_1
+    # @test compute_amplitude!(ctx, "1", max_slices=0) ≈ output_1
 end
 
 end

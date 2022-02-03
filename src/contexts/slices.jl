@@ -7,8 +7,9 @@ objects with configurable start and end points.
 """
 struct SliceIterator
     iter::CartesianIndices
-    start::Int
-    stop::Int
+    start::Integer
+    stop::Integer
+    step::Integer
 end
 
 """

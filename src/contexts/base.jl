@@ -34,6 +34,7 @@ using QXContexts.ComputeGraphs
 using OMEinsum
 using DataStructures
 using CUDA
+using Distributed: RemoteChannel
 
 export gettensor, settensor!, deletetensor!, set_open_bonds!, set_slice_vals!
 export AbstractContext, QXContext, compute_amplitude!
@@ -269,6 +270,25 @@ Funciton to execute compute graph when struct is called. Returns final tensor
 function (ctx::QXContext)()
     for n in get_commands(ctx.cg) n(ctx) end
     gettensor(ctx, output(ctx.cg))
+end
+
+function (ctx::QXContext)(bitstring::Vector{Bool}, slice::CartesianIndex)
+    # set_open_bonds!(ctx, bitstring)
+    # set_slice_vals!(ctx, slice)
+    # ctx()
+    sleep(1)
+    rand(ComplexF32)
+end
+
+function (ctx::QXContext)(jobs_queue::RemoteChannel, amps_queue::RemoteChannel)
+    # set_open_bonds!(ctx, bitstring)
+    # set_slice_vals!(ctx, slice)
+    # ctx()
+    while isopen(jobs_queue)
+        (bitstring, slice) = take!(jobs_queue)
+        result = ctx(bitstring, slice)
+        put!(amps_queue, (bitstring, result))
+    end
 end
 
 """

@@ -1,6 +1,6 @@
 output:
   method: Uniform
   params:
-    num_samples: 10
+    num_amps: 10
     seed: 42
     num_qubits: 5
