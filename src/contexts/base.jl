@@ -37,8 +37,7 @@ using CUDA
 using Distributed: RemoteChannel
 
 export gettensor, settensor!, deletetensor!, set_open_bonds!, set_slice_vals!
-export AbstractContext, QXContext, compute_amplitude!
-export ctxmap, ctxgather, ctxreduce
+export AbstractContext, QXContext
 
 abstract type AbstractContext end
 
@@ -287,37 +286,3 @@ function (ctx::QXContext)(jobs_queue::RemoteChannel, amps_queue::RemoteChannel)
     end
     nothing
 end
-
-"""
-    compute_amplitude!(ctx::QXContext, bitstring::String; max_slices=nothing)
-
-Calculate a single amplitude with the given context and bitstring. Involves a sum over
-contributions from each slice. Can optionally set the number of bonds. By default all slices
-are used.
-"""
-function compute_amplitude!(ctx::QXContext, bitstring::String; max_slices=nothing)
-    set_open_bonds!(ctx, bitstring)
-    amplitude = nothing
-    for p in SliceIterator(ctx.cg, max_slices=max_slices)
-        set_slice_vals!(ctx, p)
-        if amplitude === nothing
-            amplitude = ctx()
-        else
-            amplitude += ctx()
-        end
-    end
-    amplitude = convert(Array, amplitude) # if a gpu array convert back to gpu
-    if ndims(amplitude) == 0
-        amplitude = amplitude[]
-    end
-    amplitude
-end
-
-"""Map over items as placeholder for more complicated contexts"""
-ctxmap(f, ctx::QXContext, items) = map(f, items)
-
-"""Simple gather as placeholder for distributed contexts"""
-ctxgather(ctx::QXContext, items) = items
-
-"""Simple gather as placeholder for distributed contexts"""
-ctxreduce(f, ctx::QXContext, items) = reduce(f, items)
