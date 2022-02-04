@@ -235,15 +235,15 @@ Base.zero(::QXContext{T}) where T = zero(eltype(T))
 Base.eltype(::QXContext{T}) where T = eltype(T)
 
 """
-    set_open_bonds!(ctx::QXContext, bitstring::String)
+    set_open_bonds!(ctx::QXContext, bitstring::Vector{Bool})
 
 Given a bitstring, set the open bonds to values so contracting the network will
 calculate the amplitude of this bitstring
 """
-function set_open_bonds!(ctx::QXContext, bitstring::String="")
-    if bitstring == "" bitstring = "0"^length(ctx.output_dims) end
+function set_open_bonds!(ctx::QXContext, bitstring::Vector{Bool}=Bool[])
+    if length(bitstring) == 0 bitstring = Bool[0 for _ = 1:length(ctx.output_dims)] end
     @assert length(bitstring) == length(ctx.output_dims) "Bitstring length must match nubmer of outputs"
-    for (i, key) in enumerate(keys(ctx.output_dims)) ctx[key] = parse(Int, bitstring[i]) end
+    for (i, key) in enumerate(keys(ctx.output_dims)) ctx[key] = Int(bitstring[i]) end
 end
 
 """
@@ -251,8 +251,9 @@ end
 
 For each bond that is being sliced set the dimension to slice on.
 """
-function set_slice_vals!(ctx::QXContext, slice_values::Vector{Int})
+function set_slice_vals!(ctx::QXContext, slice_values::CartesianIndex)
     # set slice values and remove any already set
+    slice_values = Tuple(slice_values)
     for (i, key) in enumerate(keys(ctx.slice_dims))
         if i > length(slice_values)
             delete!(ctx.params, key)
@@ -273,22 +274,18 @@ function (ctx::QXContext)()
 end
 
 function (ctx::QXContext)(bitstring::Vector{Bool}, slice::CartesianIndex)
-    # set_open_bonds!(ctx, bitstring)
-    # set_slice_vals!(ctx, slice)
-    # ctx()
-    sleep(1)
-    rand(ComplexF32)
+    set_open_bonds!(ctx, bitstring)
+    set_slice_vals!(ctx, slice)
+    ctx()
 end
 
 function (ctx::QXContext)(jobs_queue::RemoteChannel, amps_queue::RemoteChannel)
-    # set_open_bonds!(ctx, bitstring)
-    # set_slice_vals!(ctx, slice)
-    # ctx()
     while isopen(jobs_queue)
         (bitstring, slice) = take!(jobs_queue)
-        result = ctx(bitstring, slice)
-        put!(amps_queue, (bitstring, result))
+        amp = ctx(bitstring, slice)
+        put!(amps_queue, (bitstring, amp))
     end
+    nothing
 end
 
 """

@@ -1,8 +1,9 @@
+using MPI
 using Random
 using Distributed
 using QXContexts.Param
 
-export SimulationContext, start_queues, save_results
+export SimulationContext, start_queues, collect_results, save_results
 
 abstract type AbstractSimContext end
 
@@ -40,11 +41,7 @@ struct ListSim <: AbstractSimContext end
 mutable struct UniformSim <: AbstractSimContext
     num_qubits::Integer
     num_amps::Integer
-    seed::Integer
-    rng::MersenneTwister
-    rng_checkpoint::MersenneTwister
-    next_bitstring::Integer
-
+    bitstrings::Vector{Vector{Bool}}
     slices::CartesianIndices
     contraction_jobs::Vector{CartesianIndex}
 end
@@ -56,7 +53,13 @@ function UniformSim(slice_params,
                     num_amps::Integer,
                     seed::Integer=42,
                     kwargs...)
+    log2(num_amps) <= num_qubits || error("Too many amplitudes for the number of qubits.")
+
     rng = MersenneTwister(seed)
+    bitstrings = Set{Vector{Bool}}()
+    while length(bitstrings) < num_amps
+        push!(bitstrings, rand(rng, Bool, num_qubits))
+    end
 
     dims = map(x -> slice_params[Symbol("v$(x)")], 1:length(slice_params))
     slices = CartesianIndices(Tuple(dims))
@@ -64,35 +67,23 @@ function UniformSim(slice_params,
     all_jobs = CartesianIndices((length(slices), num_amps))
     contraction_jobs = get_jobs(all_jobs, rank, comm_size)
 
-    UniformSim(num_qubits, num_amps, seed, rng, copy(rng), 1, slices, contraction_jobs)
+    UniformSim(num_qubits, num_amps, collect(bitstrings), slices, contraction_jobs)
 end
 
 function start_queues(ctx::UniformSim)
     jobs_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, CartesianIndex}}(32))
-    amps_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, ComplexF32}}(32))
+    amps_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, Array{ComplexF32, 0}}}(32))
     errormonitor(@async schedule_contraction_jobs(ctx, jobs_queue))
     jobs_queue, amps_queue
 end
 
-function get_bitstring!(ctx::UniformSim, i::Integer)
-    if i < ctx.next_bitstring
-        ctx.rng_checkpoint = MersenneTwister(ctx.seed)
-        ctx.next_bitstring = 1
-    end
-    copy!(ctx.rng, ctx.rng_checkpoint)
-    if i > ctx.next_bitstring
-        [rand(ctx.rng, Bool, ctx.num_qubits) for _ in ctx.next_bitstring:i-1]
-        ctx.rng_checkpoint = copy(ctx.rng)
-        ctx.next_bitstring = i
-    end
-    rand(ctx.rng, Bool, ctx.num_qubits)
-end
+get_bitstring!(ctx::UniformSim, i::Integer) = ctx.bitstrings[i]
 
 function (ctx::UniformSim)(amps_queue::RemoteChannel)
     results = Dict{Vector{Bool}, ComplexF32}()
     for i = 1:length(ctx)
         bitstring, amp = take!(amps_queue)
-        results[bitstring] = get(results, bitstring, 0) + amp
+        results[bitstring] = get(results, bitstring, 0) + amp[]
     end
     results
 end
@@ -100,10 +91,12 @@ end
 function collect_results(ctx::UniformSim, results, root, comm)
     results = [NTuple{ctx.num_qubits, Bool}(k) => v for (k, v) in pairs(results)]
     result_sizes = MPI.Allgather(Int32[length(results)], comm)
-    MPI.Gatherv(results, result_sizes, root, comm)
+    MPI.Gatherv(results, result_sizes, root, comm) #TODO: combine slices from different ranks
 end
 
-function save_results(ctx::UniformSim, results, output_file="results.txt")
+function save_results(ctx::UniformSim, results, output_file="")
+    results === nothing && return
+    output_file == "" && (output_file = "results.txt")
     open(output_file, "a") do io
         for (bitstring, amp) in results
             bitstring = prod([bit ? "1" : "0" for bit in bitstring])
@@ -120,6 +113,32 @@ Base.length(ctx::UniformSim) = length(ctx.contraction_jobs)
 # Rejection Sampling Simulation
 #===================================================#
 struct RejectionSim <: AbstractSimContext end
+
+# mutable struct UniformSim <: AbstractSimContext
+#     num_qubits::Integer
+#     num_amps::Integer
+#     seed::Integer
+#     rng::MersenneTwister
+#     rng_checkpoint::MersenneTwister
+#     next_bitstring::Integer
+
+#     slices::CartesianIndices
+#     contraction_jobs::Vector{CartesianIndex}
+# end
+
+# function get_bitstring!(ctx::RejectionSim, i::Integer)
+#     if i < ctx.next_bitstring
+#         ctx.rng_checkpoint = MersenneTwister(ctx.seed)
+#         ctx.next_bitstring = 1
+#     end
+#     copy!(ctx.rng, ctx.rng_checkpoint)
+#     if i > ctx.next_bitstring
+#         [rand(ctx.rng, Bool, ctx.num_qubits) for _ in ctx.next_bitstring:i-1]
+#         ctx.rng_checkpoint = copy(ctx.rng)
+#         ctx.next_bitstring = i
+#     end
+#     rand(ctx.rng, Bool, ctx.num_qubits)
+# end
 
 
 
