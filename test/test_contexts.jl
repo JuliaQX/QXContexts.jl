@@ -1,5 +1,3 @@
-module TestContexts
-
 using Test
 using QXContexts
 using Distributed
@@ -41,6 +39,7 @@ ghz_results = Dict{Vector{Bool}, ComplexF32}(
     # Test contraction task finishes when job queue closed.
     @test !istaskdone(t)
     close(jobs_queue)
+    sleep(1)
     @test istaskdone(t)
 
     # Test if computed amplitudes are correct.
@@ -51,6 +50,4 @@ ghz_results = Dict{Vector{Bool}, ComplexF32}(
         end
         @test amp ≈ ghz_results[bitstring]
     end
-end
-
 end

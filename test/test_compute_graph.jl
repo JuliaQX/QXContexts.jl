@@ -1,7 +1,4 @@
-module ComputeGraphTests
-
 using Test
-
 using QXContexts
 
 include("utils.jl")
@@ -99,6 +96,4 @@ include("utils.jl")
             @test dsl_1 == dsl_2
         end
     end
-end
-
 end

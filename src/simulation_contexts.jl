@@ -91,7 +91,8 @@ end
 function collect_results(ctx::UniformSim, results, root, comm)
     results = [NTuple{ctx.num_qubits, Bool}(k) => v for (k, v) in pairs(results)]
     result_sizes = MPI.Allgather(Int32[length(results)], comm)
-    MPI.Gatherv(results, result_sizes, root, comm) #TODO: combine slices from different ranks
+    recvbuf = MPI.Comm_rank(comm) == root ? MPI.VBuffer(similar(results, sum(result_sizes)), result_sizes) : nothing
+    MPI.Gatherv!(results, recvbuf, root, comm) #TODO: combine slices from different ranks
 end
 
 function save_results(ctx::UniformSim, results, output_file="")
