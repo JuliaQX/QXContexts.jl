@@ -36,8 +36,8 @@ using DataStructures
 using CUDA
 using Distributed: RemoteChannel
 
-export gettensor, settensor!, deletetensor!, set_open_bonds!, set_slice_vals!
 export AbstractContext, QXContext
+export set_open_bonds!, set_slice_vals!
 
 abstract type AbstractContext end
 
