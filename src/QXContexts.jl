@@ -6,7 +6,7 @@ include("logger.jl")
 include("parameters.jl")
 include("compute_graph/compute_graph.jl")
 include("contexts/contexts.jl")
-include("simulation_contexts.jl")
+include("simulation_contexts/simulation_contexts.jl")
 include("sysimage/sysimage.jl")
 
 @reexport using QXContexts.Logger

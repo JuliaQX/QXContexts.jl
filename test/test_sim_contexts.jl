@@ -1,6 +1,23 @@
 using Test
 using QXContexts
 
+@testset "AbstractSimContext Interface defaults tests" begin
+    struct IncompleteContext <: QXContexts.AbstractSimContext end
+    ctx = IncompleteContext()
+
+    # Dummy data.
+    i = 1; results = nothing; root = comm = 1; output_file = ""; amps_queue = nothing
+
+    @test_throws ErrorException Base.length(ctx)
+    @test_throws ErrorException start_queues(ctx)
+    @test_throws ErrorException QXContexts.get_bitstring!(ctx, i)
+    @test_throws ErrorException QXContexts.get_slice(ctx, i)
+    @test_throws ErrorException QXContexts.get_contraction_job(ctx, i)
+    @test_throws ErrorException collect_results(ctx, results, root, comm)
+    @test_throws ErrorException save_results(ctx, results, output_file)
+    @test_throws ErrorException (ctx)(amps_queue)
+end
+
 @testset "Uniform Simulation tests" begin
     test_path = dirname(@__DIR__)
     dsl_file = joinpath(test_path, "examples/ghz/ghz_5.qx")
@@ -37,7 +54,7 @@ using QXContexts
     @test results[[0, 0]] == ComplexF32(length(simctx)/2)
 
     # Test saving results
-    results = [(true, true) => 1.0, (true, false) => 1.0+1.0im]
+    results = Dict((true, true) => 1.0, (true, false) => 1.0+1.0im)
     mktempdir() do path
         save_results(simctx, results)
         @test isfile("results.txt")
