@@ -18,17 +18,26 @@ using QXContexts
     @test_throws ErrorException (ctx)(amps_queue)
 end
 
-@testset "Uniform Simulation tests" begin
+@testset "Amplitude Simulation tests" begin
     test_path = dirname(@__DIR__)
     dsl_file = joinpath(test_path, "examples/ghz/ghz_5.qx")
+    cg, _ = parse_dsl_files(dsl_file)
+
+    # Test if correct context is created for list simulation.
+    param_file = joinpath(test_path, "examples/ghz/ghz_5.yml")
+    params = parse_parameters(param_file)
+    num_amps = params[:params][:num_amps]
+    simctx = SimulationContext(param_file, cg)
+    @test typeof(simctx) == QXContexts.AmplitudeSim
+    contraction_jobs = [job for job in simctx]
+    @test length(contraction_jobs) == 4 * num_amps
+
+    # Test if correct context is created for uniform simulation.
     param_file = joinpath(test_path, "examples/ghz/ghz_5_uniform.yml")
     params = parse_parameters(param_file)
     num_amps = params[:params][:num_amps]
-
-    # Test if correct context is created and jobs are assigned to it.
-    cg, _ = parse_dsl_files(dsl_file)
     simctx = SimulationContext(param_file, cg)
-    @test typeof(simctx) == QXContexts.UniformSim
+    @test typeof(simctx) == QXContexts.AmplitudeSim
     contraction_jobs = [job for job in simctx]
     @test length(contraction_jobs) == 4 * num_amps
 

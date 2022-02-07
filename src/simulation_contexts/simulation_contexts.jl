@@ -54,8 +54,7 @@ save_results(ctx::AbstractSimContext, results, output_file="") = error("save_res
 #===================================================#
 # Concrete Implementations of AbstractSimContext
 #===================================================#
-include("list_simulation.jl")
-include("uniform_simulation.jl")
+include("amplitude_simulation.jl")
 include("rejection_simulation.jl")
 
 

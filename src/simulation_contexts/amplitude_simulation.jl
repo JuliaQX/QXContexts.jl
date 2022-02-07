@@ -1,15 +1,21 @@
 #=
-Below we define the uniform simulation implementation of the AbstractSimContext type.
+Below we define the amplitude simulation implementation of the AbstractSimContext type.
+
+The AmplitudeSim type defines two simulation modes: uniform and list simulations.
 
 In a uniform simulation, probability amplitudes are computed for a predetermined number
 of uniformly random bitstrings and saved as the simulation's output. By using direct
 sampling methods, these can then be used to generate random bitstrings with a
 distribution that approximates (or exactly matches, in the case where all 2^n bitstrings
 are used) the output distribution of the quantum circuit.
+
+A list simulation computes probability amplitudes for a predefined list of bitstrings.
+This can be used to verify a set of bitstrings, produced by a physical quantum circuit,
+has the correct distribution.
 =#
 
-"""Data structure for uniform simulation implementation"""
-mutable struct UniformSim <: AbstractSimContext
+"""Data structure for amplitude simulation context"""
+mutable struct AmplitudeSim <: AbstractSimContext
     num_qubits::Integer
     num_amps::Integer
     bitstrings::Vector{Vector{Bool}}
@@ -17,7 +23,7 @@ mutable struct UniformSim <: AbstractSimContext
     contraction_jobs::Vector{CartesianIndex}
 end
 
-"""Contructor for the uniform simulation context"""
+"""Uniform simulation constructor for the amplitude simulation context"""
 function UniformSim(slice_params,
                     rank,
                     comm_size;
@@ -41,11 +47,34 @@ function UniformSim(slice_params,
     all_jobs = CartesianIndices((length(slices), num_amps))
     contraction_jobs = get_jobs(all_jobs, rank, comm_size)
 
-    UniformSim(num_qubits, num_amps, collect(bitstrings), slices, contraction_jobs)
+    AmplitudeSim(num_qubits, num_amps, collect(bitstrings), slices, contraction_jobs)
+end
+
+"""List simulation constructor for the amplitude simulation context"""
+function ListSim(slice_params,
+                rank,
+                comm_size;
+                bitstrings::Vector{String}=String[],
+                kwargs...)
+    # Check the list of bitstrings is non-empty.
+    isempty(bitstrings) && error("No bitstrings to compute amplitudes for.")
+    
+    # Get the bitstrings to compute amplitudes for.
+    num_qubits = length(bitstrings[1])
+    num_amps = haskey(kwargs, :num_amps) ? min(kwargs[:num_amps], length(bitstrings)) : length(bitstrings)
+    bitstring_list = [[parse(Bool, bit) for bit in bitstring] for bitstring in bitstrings[1:num_amps]]
+
+    # Determine the contraction jobs to be assigned to the returned simulation context.
+    dims = map(x -> slice_params[Symbol("v$(x)")], 1:length(slice_params))
+    slices = CartesianIndices(Tuple(dims))
+    all_jobs = CartesianIndices((length(slices), num_amps))
+    contraction_jobs = get_jobs(all_jobs, rank, comm_size)
+
+    AmplitudeSim(num_qubits, num_amps, bitstring_list, slices, contraction_jobs)
 end
 
 """Collect amplitudes from the given queue and store them in a results dictionary."""
-function (ctx::UniformSim)(amps_queue::RemoteChannel)
+function (ctx::AmplitudeSim)(amps_queue::RemoteChannel)
     results = Dict{Vector{Bool}, ComplexF32}()
     for i = 1:length(ctx)
         bitstring, amp = take!(amps_queue)
@@ -55,7 +84,7 @@ function (ctx::UniformSim)(amps_queue::RemoteChannel)
 end
 
 """Initialise and return the queues used for the simulation."""
-function start_queues(ctx::UniformSim)
+function start_queues(ctx::AmplitudeSim)
     jobs_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, CartesianIndex}}(32))
     amps_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, Array{ComplexF32, 0}}}(32))
     errormonitor(@async schedule_contraction_jobs(ctx, jobs_queue))
@@ -63,7 +92,7 @@ function start_queues(ctx::UniformSim)
 end
 
 """Collect all results on the root rank."""
-function collect_results(ctx::UniformSim, results, root, comm)
+function collect_results(ctx::AmplitudeSim, results, root, comm)
     local_results = [NTuple{ctx.num_qubits, Bool}(k) => v for (k, v) in pairs(results)]
     result_sizes = MPI.Allgather(Int32[length(local_results)], comm)
     recvbuf = MPI.Comm_rank(comm) == root ? MPI.VBuffer(similar(local_results, sum(result_sizes)), result_sizes) : nothing
@@ -80,7 +109,7 @@ function collect_results(ctx::UniformSim, results, root, comm)
 end
 
 """Write the given results to a file."""
-function save_results(ctx::UniformSim, results, output_file="")
+function save_results(ctx::AmplitudeSim, results, output_file="")
     results === nothing && return
     output_file == "" && (output_file = "results.txt")
     open(output_file, "a") do io
@@ -91,7 +120,7 @@ function save_results(ctx::UniformSim, results, output_file="")
     end
 end
 
-Base.length(ctx::UniformSim) = length(ctx.contraction_jobs)
-get_bitstring!(ctx::UniformSim, i::Integer) = ctx.bitstrings[i]
-get_slice(ctx::UniformSim, slice_i::Integer) = ctx.slices[slice_i]
-get_contraction_job(ctx::UniformSim, state::Integer) = Tuple(ctx.contraction_jobs[state])
+Base.length(ctx::AmplitudeSim) = length(ctx.contraction_jobs)
+get_bitstring!(ctx::AmplitudeSim, i::Integer) = ctx.bitstrings[i]
+get_slice(ctx::AmplitudeSim, slice_i::Integer) = ctx.slices[slice_i]
+get_contraction_job(ctx::AmplitudeSim, state::Integer) = Tuple(ctx.contraction_jobs[state])
