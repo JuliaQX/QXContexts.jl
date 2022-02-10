@@ -44,7 +44,7 @@ function UniformSim(slice_params,
     # Determine the contraction jobs to be assigned to the returned simulation context.
     dims = map(x -> slice_params[Symbol("v$(x)")], 1:length(slice_params))
     slices = CartesianIndices(Tuple(dims))
-    all_jobs = CartesianIndices((length(slices), num_amps))
+    all_jobs = CartesianIndices((num_amps, length(slices)))
     contraction_jobs = get_jobs(all_jobs, rank, comm_size)
 
     AmplitudeSim(num_qubits, num_amps, collect(bitstrings), slices, contraction_jobs)
@@ -67,7 +67,7 @@ function ListSim(slice_params,
     # Determine the contraction jobs to be assigned to the returned simulation context.
     dims = map(x -> slice_params[Symbol("v$(x)")], 1:length(slice_params))
     slices = CartesianIndices(Tuple(dims))
-    all_jobs = CartesianIndices((length(slices), num_amps))
+    all_jobs = CartesianIndices((num_amps, length(slices)))
     contraction_jobs = get_jobs(all_jobs, rank, comm_size)
 
     AmplitudeSim(num_qubits, num_amps, bitstring_list, slices, contraction_jobs)
@@ -89,35 +89,6 @@ function start_queues(ctx::AmplitudeSim)
     amps_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, Array{ComplexF32, 0}}}(32))
     errormonitor(@async schedule_contraction_jobs(ctx, jobs_queue))
     jobs_queue, amps_queue
-end
-
-"""Collect all results on the root rank."""
-function collect_results(ctx::AmplitudeSim, results, root, comm)
-    local_results = [NTuple{ctx.num_qubits, Bool}(k) => v for (k, v) in pairs(results)]
-    result_sizes = MPI.Allgather(Int32[length(local_results)], comm)
-    recvbuf = MPI.Comm_rank(comm) == root ? MPI.VBuffer(similar(local_results, sum(result_sizes)), result_sizes) : nothing
-    all_results = MPI.Gatherv!(local_results, recvbuf, root, comm)
-
-    if all_results !== nothing
-        combined_results = Dict{NTuple{ctx.num_qubits, Bool}, ComplexF32}()
-        for (bitstring, amp) in all_results
-            combined_results[bitstring] = get(combined_results, bitstring, 0) + amp
-        end
-        return combined_results
-    end
-    nothing
-end
-
-"""Write the given results to a file."""
-function save_results(ctx::AmplitudeSim, results, output_file="")
-    results === nothing && return
-    output_file == "" && (output_file = "results.txt")
-    open(output_file, "a") do io
-        for (bitstring, amp) in pairs(results)
-            bitstring = prod([bit ? "1" : "0" for bit in bitstring])
-            println(io, bitstring, " : ", amp)
-        end
-    end
 end
 
 Base.length(ctx::AmplitudeSim) = length(ctx.contraction_jobs)

@@ -19,9 +19,8 @@ export SimulationContext, start_queues, collect_results, save_results
 abstract type AbstractSimContext end
 
 #===================================================#
-# Simulation Context Interface
+# Simulation Context Interface.
 #===================================================#
-# TODO: test that these work correctly.
 """Return the number of contraction jobs assigned to the given simulation context instance."""
 Base.length(ctx::AbstractSimContext) = error("length is not yet implemented for ", typeof(ctx))
 
@@ -41,26 +40,9 @@ get_slice(ctx::AbstractSimContext, i::Integer) = error("get_slice is not yet imp
 """Returns the i-th contraction job, ie a (bitstring, slice) tuple, to be scheduled."""
 get_contraction_job(ctx::AbstractSimContext, i::Integer) = error("get_contraction_job is not yet implemented for ", typeof(ctx))
 
-"""Collect the given results on the root MPI rank."""
-collect_results(ctx::AbstractSimContext, results, root, comm) = error("collect_results is not yet implemented for ", typeof(ctx))
-
-"""Write the given results to a file."""
-save_results(ctx::AbstractSimContext, results, output_file="") = error("save_results is not yet implemented for ", typeof(ctx))
-
 """Begin collecting and processing amplitudes from the given amplitude queue."""
 (ctx::AbstractSimContext)(amps_queue) = error(typeof(ctx), " is not yet callable")
 
-
-#===================================================#
-# Concrete Implementations of AbstractSimContext
-#===================================================#
-include("amplitude_simulation.jl")
-include("rejection_simulation.jl")
-
-
-#===================================================#
-# Convenience Functions
-#===================================================#
 """
     schedule_contraction_jobs(ctx::AbstractSimContext, jobs_queue::RemoteChannel)
 
@@ -77,9 +59,48 @@ Base.iterate(ctx::AbstractSimContext) = iterate(ctx, 1)
 
 function Base.iterate(ctx::AbstractSimContext, state::Integer)
     state > length(ctx) && return nothing
-    slice_i, bitstring_j = get_contraction_job(ctx, state)
+    bitstring_j, slice_i = get_contraction_job(ctx, state)
     (get_bitstring!(ctx, bitstring_j), get_slice(ctx, slice_i)), state + 1
 end
+
+"""Collect the given results on the root MPI rank."""
+function collect_results(ctx::AbstractSimContext, local_results::Dict{Vector{Bool}, T}, root, comm) where {T}
+    local_results = [NTuple{ctx.num_qubits, Bool}(k) => v for (k, v) in pairs(local_results)]
+    sizes = MPI.Allgather(Int32[length(local_results)], comm)
+    vbuf = MPI.Comm_rank(comm) == root ? MPI.VBuffer(similar(local_results, sum(sizes)), sizes) : nothing
+    all_results = MPI.Gatherv!(local_results, vbuf, root, comm)
+
+    if all_results !== nothing
+        combined_results = Dict{NTuple{ctx.num_qubits, Bool}, T}()
+        for (bitstring, amp) in all_results
+            combined_results[bitstring] = get(combined_results, bitstring, 0) + amp
+        end
+        return combined_results
+    end
+    nothing
+end
+
+"""Write the given results to a file."""
+function save_results(ctx::AbstractSimContext, results::Dict{NTuple{N, Bool}, T}, output_file="") where {N, T}
+    results === nothing && return
+    output_file == "" && (output_file = "results.txt")
+    open(output_file, "a") do io
+        for (bitstring, result) in pairs(results)
+            bitstring = prod([bit ? "1" : "0" for bit in bitstring])
+            println(io, bitstring, " : ", result)
+        end
+    end
+end
+
+#===================================================#
+# Concrete Implementations of AbstractSimContext
+#===================================================#
+include("amplitude_simulation.jl")
+include("rejection_simulation.jl")
+
+#===================================================#
+# Convenience Functions
+#===================================================#
 
 """
     SimulationContext(param_file::Sting, cg::ComputeGraph, rank::Integer=0, comm_size::Integer=1)
