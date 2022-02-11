@@ -1,5 +1,3 @@
-using Test
-
 # include source of bin file here to avoid world age issues
 include("../bin/qxsimulate.jl")
 
@@ -13,7 +11,8 @@ include("../bin/qxsimulate.jl")
         output_fname = joinpath(path, "out.jld2")
         args = ["-d", dsl_input,
                 "-p", param_file,
-                "-o", output_fname]
+                "-o", output_fname,
+                "-l", path]
         main(args)
         @test isfile(output_fname)
     end

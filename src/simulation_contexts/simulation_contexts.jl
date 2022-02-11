@@ -81,9 +81,10 @@ function collect_results(ctx::AbstractSimContext, local_results::Dict{Vector{Boo
 end
 
 """Write the given results to a file."""
-function save_results(ctx::AbstractSimContext, results::Dict{NTuple{N, Bool}, T}, output_file="") where {N, T}
+function save_results(ctx::AbstractSimContext, results::Dict{NTuple{N, Bool}, T}; output_dir="", output_file="") where {N, T}
     results === nothing && return
     output_file == "" && (output_file = "results.txt")
+    output_file = joinpath(output_dir, output_file)
     open(output_file, "a") do io
         for (bitstring, result) in pairs(results)
             bitstring = prod([bit ? "1" : "0" for bit in bitstring])
@@ -120,6 +121,11 @@ function SimulationContext(param_file::String, cg::ComputeGraph, rank::Integer=0
                                         sim_params[:params]...
                                         )
 end
+
+function SimulationContext(param_file::String, cg::ComputeGraph, comm::MPI.Comm)
+    SimulationContext(param_file, cg, MPI.Comm_rank(comm), MPI.Comm_size(comm))
+end
+
 get_constructor(func_name::String) = getfield(QXContexts, Symbol(func_name*"Sim"))
 
 """Return a batch of contraction jobs based on MPI rank and comm size."""

@@ -1,6 +1,3 @@
-using Test
-using QXContexts
-
 include("utils.jl")
 
 @testset "Compute Graph Tests" begin

@@ -1,7 +1,3 @@
-using Test
-using QXContexts
-using Distributed
-
 ghz_results = Dict{Vector{Bool}, ComplexF32}(
     [1, 1, 0, 0, 1] => 0 + 0im,
     [1, 0, 0, 0, 0] => 0 + 0im,

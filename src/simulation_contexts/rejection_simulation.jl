@@ -91,11 +91,11 @@ function collect_results(ctx::RejectionSim, results::Tuple{Dict, Dict}, root, co
     all_amps, all_counts
 end
 
-function save_results(ctx::RejectionSim, results::Tuple{Dict, Dict}, output_file::String="")
+function save_results(ctx::RejectionSim, results::Tuple{Dict, Dict}; output_dir::String="", output_file::String="")
     amps, counts = results
     output_file = output_file == "" ? "results.txt" : output_file
-    save_results(ctx, amps, "amps_" * output_file)
-    save_results(ctx, counts, "counts_" * output_file)
+    save_results(ctx, amps; output_dir = output_dir, output_file = "amps_" * output_file)
+    save_results(ctx, counts; output_dir = output_dir, output_file = "counts_" * output_file)
 end
 
 function get_bitstring!(ctx::RejectionSim, i::Integer)

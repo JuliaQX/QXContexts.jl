@@ -3,15 +3,7 @@ using MPI
 using Distributed
 using CUDA
 using QXContexts
-
-# dsl_file = "../examples/ghz/ghz_5.qx"
-# data_file = "../examples/ghz/ghz_5.jld2"
-# param_file = "../examples/ghz/ghz_5_uniform.yml"
-# output_file = "results.txt"
-
-# elt = ComplexF32
-# use_gpu = true
-# num_cpu_workers = 1
+using Logging
 
 function parse_commandline(ARGS)
     s = ArgParseSettings("QXContexts")
@@ -33,6 +25,10 @@ function parse_commandline(ARGS)
             help = "Output data file path"
             default = "qxsimulation_results.txt"
             arg_type = String
+        "--log-dir", "-l"
+            help = "Directory for log files."
+            default = "./"
+            arg_type = String
         "--gpu", "-g"
             help = "Use GPU if available"
             action = :store_true
@@ -50,6 +46,7 @@ function main(ARGS)
     data_file   = args["data-file"]
     param_file  = args["parameter-file"]
     output_file = args["output-file"]
+    log_dir     = args["log-dir"]
     use_gpu     = args["gpu"]
     elt         = args["elt"]
 
@@ -59,12 +56,12 @@ function main(ARGS)
     #===================================================#
     # Initialise processes.
     #===================================================#
-    # Initialise mpi ranks
+    # Initialise mpi
     MPI.Init()
     comm = MPI.COMM_WORLD
-    comm_size = MPI.Comm_size(comm)
-    rank = MPI.Comm_rank(comm)
     root = 0
+    
+    global_logger(QXLogger(; show_info_source=true, root_path=log_dir))
 
     # Start up local Julia cluster
     using_cuda = use_gpu && CUDA.functional() && !isempty(devices())
@@ -86,7 +83,7 @@ function main(ARGS)
     # Initialise Contexts.
     #===================================================#
     cg, _ = parse_dsl_files(dsl_file)
-    simctx = SimulationContext(param_file, cg, rank, comm_size)
+    simctx = SimulationContext(param_file, cg, comm)
 
     expr = quote
         cg, _ = parse_dsl_files($dsl_file, $data_file)
@@ -99,24 +96,24 @@ function main(ARGS)
     #===================================================#
     # Start Simulation.
     #===================================================#
-    @info "Rank $rank - Initialising work queues"
-    jobs_queue, amps_queue = start_queues(simctx) # <- this should spawn a feeder task
+    @info "Initialising work queues"
+    jobs_queue, amps_queue = start_queues(simctx)
 
-    @info "Rank $rank - Starting contractors"
+    @info "Starting contractors"
     for worker in workers()
         remote_do((j, a) -> conctx(j, a), worker, jobs_queue, amps_queue)
     end
 
-    @info "Rank $rank - Starting simulation"
+    @info "Starting simulation"
     results = simctx(amps_queue)
 
 
     #===================================================#
     # Collect results and clean up
     #===================================================#
-    @info "Rank $rank - Collecting results"
+    @info "Collecting results"
     results = collect_results(simctx, results, root, comm)
-    save_results(simctx, results, output_file)
+    save_results(simctx, results; output_file=output_file)
     rmprocs(workers())
 end
 

@@ -1,7 +1,3 @@
-using Test
-using QXContexts
-using Distributed
-
 @testset "AbstractSimContext Interface defaults tests" begin
     struct IncompleteContext <: QXContexts.AbstractSimContext end
     ctx = IncompleteContext()
@@ -64,8 +60,8 @@ end
     # Test saving results
     results = Dict((true, true) => 1.0, (true, false) => 1.0+1.0im)
     mktempdir() do path
-        save_results(simctx, results)
-        @test isfile("results.txt")
+        save_results(simctx, results; output_dir = path)
+        @test isfile(path * "/results.txt")
     end
 end
 
@@ -111,8 +107,8 @@ end
     amplitudes = Dict((true, true) => 1.0, (true, false) => 1.0 + 1.0im)
     counts = Dict((true, true) => 1, (true, false) => 2)
     mktempdir() do path
-        save_results(simctx, (amplitudes, counts))
-        @test isfile("amps_results.txt")
-        @test isfile("counts_results.txt")
+        save_results(simctx, (amplitudes, counts); output_dir = path)
+        @test isfile(path * "/amps_results.txt")
+        @test isfile(path * "/counts_results.txt")
     end
 end
