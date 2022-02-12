@@ -48,7 +48,9 @@ end
 # Channel Interface
 #===================================================#
 """Store and accumulate the given amplitude in the channel"""
-function put!(c::AmplitudeChannel{V}, bitstring::Vector{Bool}, slice::CartesianIndex, amp::V) where V
+function put!(c::AmplitudeChannel{V}, result::Tuple{Vector{Bool}, CartesianIndex, Array{V, 0}}) where V
+    bitstring, slice, amp = result
+    amp = amp[] # Flatten the amplitude from a zero dim array to a scalar.
     lock(c.mod_cond)
     try
         inds = get_inds(c, bitstring)
@@ -68,6 +70,7 @@ function put!(c::AmplitudeChannel{V}, bitstring::Vector{Bool}, slice::CartesianI
         end
 
         !result_add && (ind = expand!(c, bitstring, slice, amp))
+        @debug "Slices added to bitstring=$(prod(string.(Int.(bitstring)))) is $(length(c.slices[ind])) out of $(c.num_slices)"
         length(c.slices[ind]) == c.num_slices && notify(c.take_cond; all=false)
     finally
         unlock(c.mod_cond)
@@ -94,6 +97,7 @@ end
 
 """Expand the size of the channel to store the given amplitude"""
 function expand!(c, bitstring, slice, amp)
+    @warn "Increasing the size of amplitude channel."
     append!(c.bitstrings, [bitstring])
     append!(c.slices, [Set{CartesianIndex}([slice])])
     append!(c.amps, [amp])

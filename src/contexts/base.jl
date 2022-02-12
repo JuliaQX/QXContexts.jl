@@ -282,7 +282,8 @@ function (ctx::QXContext)(jobs_queue::RemoteChannel, amps_queue::RemoteChannel)
     while isopen(jobs_queue)
         (bitstring, slice) = take!(jobs_queue)
         amp = ctx(bitstring, slice)
-        put!(amps_queue, (bitstring, amp))
+        @debug "Putting bitstring=$(prod(string.(Int.(bitstring)))) with amp=$amp into queue"
+        put!(amps_queue, (bitstring, slice, amp))
     end
     nothing
 end

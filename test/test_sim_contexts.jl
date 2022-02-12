@@ -1,4 +1,4 @@
-@testset "AbstractSimContext Interface defaults tests" begin
+@testset "AbstractSimContext Interface tests" begin
     struct IncompleteContext <: QXContexts.AbstractSimContext end
     ctx = IncompleteContext()
 
@@ -49,9 +49,10 @@ end
 
     # Test collecting amplitudes
     amp = fill(ComplexF32(1.0),())
+    slice = CartesianIndex((1,))
     for i = 1:length(simctx)/2
-        put!(amps_queue, ([0, 1], amp))
-        put!(amps_queue, ([0, 0], amp))
+        put!(amps_queue, ([0, 1], slice, amp))
+        put!(amps_queue, ([0, 0], slice, amp))
     end
     results = simctx(amps_queue)
     @test results[[0, 1]] == ComplexF32(length(simctx)/2)
@@ -87,10 +88,10 @@ end
     amps_queue = RemoteChannel(()->QXContexts.AmplitudeChannel{ComplexF32}(length(slices), 7))
     amp_channel = Distributed.lookup_ref(Distributed.remoteref_id(amps_queue)).c
     for n in 1:simctx.num_samples
-        for slice in slices put!(amps_queue, bitstring, slice, ComplexF32(0.0)) end
-        for slice in slices put!(amps_queue, bitstring, slice, ComplexF32(1.0)) end
+        for slice in slices put!(amps_queue, (bitstring, slice, fill(ComplexF32(0.0)))) end
+        for slice in slices put!(amps_queue, (bitstring, slice, fill(ComplexF32(1.0)))) end
     end
-    @test length(amp_channel.amps) == 2 * simctx.num_samples
+    @test length(filter(x -> x !== nothing, amp_channel.bitstrings)) == 2 * simctx.num_samples
     @test bitstring in amp_channel.bitstrings
 
     # Test rejection algorithm.

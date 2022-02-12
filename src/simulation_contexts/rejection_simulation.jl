@@ -60,9 +60,11 @@ function (ctx::RejectionSim)(amps_queue::RemoteChannel)
     rng = MersenneTwister(ctx.seed)
     N = 2^ctx.num_qubits
     M = ctx.M
+    @debug "Starting rejection sampling with M=$M"
 
     while ctx.samples_collected < ctx.num_samples
         bitstring, amp = take!(amps_queue)
+        @debug "Next candidate is bitstring=$(prod(string.(Int.(bitstring)))) with amp=$amp"
         !haskey(amplitudes, bitstring) && (amplitudes[bitstring] = amp)
 
         Np = N * abs(amp)^2
@@ -70,6 +72,7 @@ function (ctx::RejectionSim)(amps_queue::RemoteChannel)
         if rand(rng) < Np / M
             ctx.samples_collected += 1
             counts[bitstring] = get(counts, bitstring, 0) + 1
+            @debug "Accepted! The number of samples is now $(ctx.samples_collected)"
         end
     end
 
@@ -79,7 +82,7 @@ end
 """Initialise and return the queues used for the simulation."""
 function start_queues(ctx::RejectionSim)
     jobs_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, CartesianIndex}}(32))
-    amps_queue = RemoteChannel(()->AmplitudeChannel{ComplexF32}(32))
+    amps_queue = RemoteChannel(()->AmplitudeChannel{ComplexF32}(ctx.num_slices, 32))
     errormonitor(@async schedule_contraction_jobs(ctx, jobs_queue))
     jobs_queue, amps_queue
 end
@@ -93,6 +96,9 @@ end
 
 function save_results(ctx::RejectionSim, results::Tuple{Dict, Dict}; output_dir::String="", output_file::String="")
     amps, counts = results
+    output_file = joinpath(output_dir, output_file)
+    output_dir = dirname(output_file)
+    output_file = basename(output_file)
     output_file = output_file == "" ? "results.txt" : output_file
     save_results(ctx, amps; output_dir = output_dir, output_file = "amps_" * output_file)
     save_results(ctx, counts; output_dir = output_dir, output_file = "counts_" * output_file)

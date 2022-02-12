@@ -11,7 +11,7 @@ using MPI
     try
         @testset "INFO test" begin
             io = IOBuffer()
-            global_logger(QXLogger(io; show_info_source=true))
+            global_logger(QXLogger(; stream=io, show_info_source=true))
             @info "info_test"
 
             log = split(String(take!(io)), "\n")[1:end-1]
@@ -21,7 +21,6 @@ using MPI
                 log_elem = split(l, " ")
                 em = collect(eachmatch(r"\[(.*?)\]", log_elem[1])) # capture values in []
                 @test DateTime(em[1].match, df) !== nothing
-                # @test match(r"[rank=/\d+/]", em[2].match) !== nothing
                 @test em[2].match == "[host=$(gethostname())]"
                 @test log_elem[2] == "INFO"
                 @test log_elem[3] == "info_test"
@@ -30,7 +29,7 @@ using MPI
 
         @testset "WARN test" begin
             io = IOBuffer()
-            global_logger(QXLogger(io; show_info_source=true))
+            global_logger(QXLogger(; stream=io, show_info_source=true))
 
             @warn "warn_test"; line_num = @__LINE__
 
@@ -53,7 +52,7 @@ using MPI
 
         @testset "ERROR test" begin
             io = IOBuffer()
-            global_logger(QXLogger(io; show_info_source=true))
+            global_logger(QXLogger(; stream=io, show_info_source=true))
 
             line_num = @__LINE__; @error "error_test"
 
@@ -78,7 +77,8 @@ using MPI
             mktempdir() do path
                 initialized = MPI.Initialized()
                 initialized || MPI.Init()
-                logger = QXLogger(; show_info_source=true, root_path=path)
+                log_dir = get_log_path(path)
+                logger = QXLogger(; log_dir=log_dir, show_info_source=true, root_path=path)
                 global_logger(logger)
                 @info "info_test"
                 close(logger.stream)
@@ -91,7 +91,6 @@ using MPI
                 em = collect(eachmatch(r"\[(.*?)\]", log_elem[1])) # capture values in []
                 @test DateTime(em[1].match, df) !== nothing
                 @test em[2].match == "[host=$(gethostname())]"
-                @test em[3].match == "[rank=0]"
                 @test log_elem[2] == "INFO"
                 @test log_elem[3] == "info_test"
                 initialized || MPI.Finalize()

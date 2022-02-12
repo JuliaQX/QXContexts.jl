@@ -61,7 +61,9 @@ function main(ARGS)
     comm = MPI.COMM_WORLD
     root = 0
     
-    global_logger(QXLogger(; show_info_source=true, root_path=log_dir))
+    log_dir = get_log_path(log_dir)
+    logger = QXLogger(; log_dir=log_dir, level=Logging.Info)
+    global_logger(logger)
 
     # Start up local Julia cluster
     using_cuda = use_gpu && CUDA.functional() && !isempty(devices())
@@ -77,6 +79,9 @@ function main(ARGS)
         addprocs(1; exeflags="--project")
     end
     @everywhere workers() eval(:(using QXContexts))
+    @everywhere workers() eval(:(using Logging))
+    @eval @everywhere workers() logger = QXLogger(; log_dir=$log_dir, level=Logging.Info)
+    @everywhere workers() global_logger(logger)
 
 
     #===================================================#
@@ -99,7 +104,7 @@ function main(ARGS)
     @info "Initialising work queues"
     jobs_queue, amps_queue = start_queues(simctx)
 
-    @info "Starting contractors"
+    @debug "Starting contractors"
     for worker in workers()
         remote_do((j, a) -> conctx(j, a), worker, jobs_queue, amps_queue)
     end

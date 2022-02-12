@@ -77,7 +77,7 @@ end
 function (ctx::AmplitudeSim)(amps_queue::RemoteChannel)
     results = Dict{Vector{Bool}, ComplexF32}()
     for i = 1:length(ctx)
-        bitstring, amp = take!(amps_queue)
+        bitstring, slice, amp = take!(amps_queue)
         results[bitstring] = get(results, bitstring, 0) + amp[]
     end
     results
@@ -86,7 +86,7 @@ end
 """Initialise and return the queues used for the simulation."""
 function start_queues(ctx::AmplitudeSim)
     jobs_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, CartesianIndex}}(32))
-    amps_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, Array{ComplexF32, 0}}}(32))
+    amps_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, CartesianIndex, Array{ComplexF32, 0}}}(32))
     errormonitor(@async schedule_contraction_jobs(ctx, jobs_queue))
     jobs_queue, amps_queue
 end
