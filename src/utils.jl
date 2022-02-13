@@ -1,5 +1,3 @@
-module Param
-
 export parse_parameters
 
 import YAML
@@ -32,4 +30,7 @@ function parse_parameters(filename::String)
     method_params
 end
 
+function generate_simulation_script(dir::String="./")
+  file = joinpath(dirname(@__DIR__), "bin", "qxsimulate.jl")
+  cp(file, joinpath(dir, "qxsimulate.jl"))
 end

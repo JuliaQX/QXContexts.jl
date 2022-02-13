@@ -1,7 +1,7 @@
 output:
   method: List
   params:
-    num_samples: 500
+    num_amps: 500
     bitstrings:
       - "1010010110100010011001000"
       - "0001010000110110010101110"

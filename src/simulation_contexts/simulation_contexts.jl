@@ -11,7 +11,6 @@ below.
 using MPI
 using Random
 using Distributed
-using QXContexts.Param
 using QXContexts.ComputeGraphs: ComputeGraph
 
 export SimulationContext, start_queues, collect_results, save_results
