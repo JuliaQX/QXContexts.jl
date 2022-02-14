@@ -87,9 +87,11 @@ function main(ARGS)
     #===================================================#
     # Initialise Contexts.
     #===================================================#
+    @info "Setting up simulation context"
     cg, _ = parse_dsl_files(dsl_file)
     simctx = SimulationContext(param_file, cg, comm)
 
+    @info "Setting up contraction context"
     expr = quote
         cg, _ = parse_dsl_files($dsl_file, $data_file)
         T = $using_cuda ? CuArray{$elt} : Array{$elt}
@@ -104,7 +106,7 @@ function main(ARGS)
     @info "Initialising work queues"
     jobs_queue, amps_queue = start_queues(simctx)
 
-    @debug "Starting contractors"
+    @info "Starting contractors"
     for worker in workers()
         remote_do((j, a) -> conctx(j, a), worker, jobs_queue, amps_queue)
     end

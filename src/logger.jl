@@ -27,7 +27,7 @@ end
 #======================================================================#
 
 struct QXLogger <: Logging.AbstractLogger
-    stream::IO
+    stream::Union{IO, Nothing}
     min_level::Logging.LogLevel
     message_limits::Dict{Any,Int}
     show_info_source::Bool
@@ -44,7 +44,7 @@ function QXLogger(;log_dir=nothing, stream=nothing, level=Logging.Info, show_inf
     if stream === nothing
         log_dir == "" && (log_dir = get_log_path(root_path))
         log_path = joinpath(log_dir, "proc_$(myid()).log")
-        stream = open(log_path, "w+")
+        # stream = open(log_path, "w+")
     end
     QXLogger(stream, level, Dict{Any,Int}(), show_info_source, log_path)
 end
@@ -69,7 +69,14 @@ function handle_message(logger::QXLogger, level, message, _module, group, id,
         formatted_message *= " -@-> $(filepath):$(line)"
     end
     formatted_message *= "\n"
-    write(logger.stream, formatted_message)
+    if logger.log_path === nothing
+        stream = logger.stream
+        write(stream, formatted_message)
+    else
+        stream = open(logger.log_path, "a+")
+        write(stream, formatted_message)
+        close(stream)
+    end
     nothing
 end
 

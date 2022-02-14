@@ -42,7 +42,9 @@ function UniformSim(slice_params,
     end
 
     # Determine the contraction jobs to be assigned to the returned simulation context.
-    dims = map(x -> slice_params[Symbol("v$(x)")], 1:length(slice_params))
+    num_slices = haskey(kwargs, :slices) ? kwargs[:slices] : length(slice_params)
+    @assert num_slices <= length(slice_params) "Number of slices must be <= $(length(slice_params))"
+    dims = map(x -> slice_params[Symbol("v$(x)")]::Int, 1:num_slices)
     slices = CartesianIndices(Tuple(dims))
     all_jobs = CartesianIndices((num_amps, length(slices)))
     contraction_jobs = get_jobs(all_jobs, rank, comm_size)
@@ -65,7 +67,9 @@ function ListSim(slice_params,
     bitstring_list = [[parse(Bool, bit) for bit in bitstring] for bitstring in bitstrings[1:num_amps]]
 
     # Determine the contraction jobs to be assigned to the returned simulation context.
-    dims = map(x -> slice_params[Symbol("v$(x)")], 1:length(slice_params))
+    num_slices = haskey(kwargs, :slices) ? kwargs[:slices] : length(slice_params)
+    @assert num_slices <= length(slice_params) "Number of slices must be <= $(length(slice_params))"
+    dims = map(x -> slice_params[Symbol("v$(x)")]::Int, 1:num_slices)
     slices = CartesianIndices(Tuple(dims))
     all_jobs = CartesianIndices((num_amps, length(slices)))
     contraction_jobs = get_jobs(all_jobs, rank, comm_size)

@@ -42,7 +42,9 @@ function RejectionSim(slice_params,
     M == 0.0 && error("M should be larger than zero for rejection sampling.")
 
     # Get the slices of the tensor network.
-    dims = map(x -> slice_params[Symbol("v$(x)")], 1:length(slice_params))
+    num_slices = haskey(kwargs, :slices) ? kwargs[:slices] : length(slice_params)
+    @assert num_slices <= length(slice_params) "Number of slices must be <= $(length(slice_params))"
+    dims = map(x -> slice_params[Symbol("v$(x)")]::Int, 1:num_slices)
     slices = CartesianIndices(Tuple(dims))
 
     # Initialise the random number generator.

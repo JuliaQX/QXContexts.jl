@@ -81,7 +81,6 @@ using MPI
                 logger = QXLogger(; log_dir=log_dir, show_info_source=true, root_path=path)
                 global_logger(logger)
                 @info "info_test"
-                close(logger.stream)
 
                 @test isfile(logger.log_path)
                 log = readline(logger.log_path)
