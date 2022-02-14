@@ -1,0 +1,6 @@
+output:
+  method: Uniform
+  params:
+    num_qubits: 53
+    num_samples: 16
+    seed: 42
