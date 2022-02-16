@@ -52,6 +52,7 @@ function main(ARGS)
 
     data_file  === nothing && (data_file  = splitext(dsl_file)[1] * ".jld2")
     param_file === nothing && (param_file = splitext(dsl_file)[1] * ".yml")
+    start_time = time()
 
     #===================================================#
     # Initialise processes.
@@ -122,6 +123,13 @@ function main(ARGS)
     results = collect_results(simctx, results, root, comm)
     save_results(simctx, results; output_file=output_file)
     rmprocs(workers())
+    elapsed_time = time() - start_time
+    open("qxtime.log", "a") do io
+        time_report = "time:" * string(elapsed_time) * " "
+        time_report *= join([string(k) * ":" * string(v) for (k, v) in pairs(args)], " ")
+        time_report *= "\n"
+        write(io, time_report)
+    end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
