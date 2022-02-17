@@ -77,8 +77,8 @@ using MPI
             mktempdir() do path
                 initialized = MPI.Initialized()
                 initialized || MPI.Init()
-                log_dir = get_log_path(path)
-                logger = QXLogger(; log_dir=log_dir, show_info_source=true, root_path=path)
+                log_dir, time_log = get_log_path(path)
+                logger = QXLogger(; log_dir=log_dir, time_log=time_log, show_info_source=true, root_path=path)
                 global_logger(logger)
                 @info "info_test"
 

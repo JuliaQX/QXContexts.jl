@@ -4,8 +4,9 @@ module Logger
 using Logging
 using Dates
 using MPI
-using TimerOutputs
-import Distributed: myid
+# using TimerOutputs
+import CUDA: functional, devices
+import Distributed: myid, workers, nprocs
 import UUIDs: UUID, uuid4
 import Logging: shouldlog, min_enabled_level, catch_exceptions, handle_message
 
@@ -27,11 +28,12 @@ end
 #======================================================================#
 
 struct QXLogger <: Logging.AbstractLogger
-    stream::Union{IO, Nothing}
+    stream::IO
     min_level::Logging.LogLevel
     message_limits::Dict{Any,Int}
     show_info_source::Bool
     log_path::Union{String, Nothing}
+    time_log_path::Union{String, Nothing}
 end
 
 """
@@ -39,14 +41,14 @@ end
 
 Logger for QXContexts.
 """
-function QXLogger(;log_dir=nothing, stream=nothing, level=Logging.Info, show_info_source=false, root_path="./")
+function QXLogger(;log_dir=nothing, time_log=nothing, stream=nothing, level=Logging.Info, show_info_source=false, root_path="./")
     log_path = nothing
     if stream === nothing
-        log_dir == "" && (log_dir = get_log_path(root_path))
+        log_dir == "" && ((log_dir, time_log) = get_log_path(root_path))
         log_path = joinpath(log_dir, "proc_$(myid()).log")
-        # stream = open(log_path, "w+")
+        stream = open(log_path, "w+")
     end
-    QXLogger(stream, level, Dict{Any,Int}(), show_info_source, log_path)
+    QXLogger(stream, level, Dict{Any,Int}(), show_info_source, log_path, time_log)
 end
 
 shouldlog(logger::QXLogger, level, _module, group, id) = get(logger.message_limits, id, 1) > 0
@@ -61,6 +63,8 @@ function handle_message(logger::QXLogger, level, message, _module, group, id,
         remaining > 0 || return nothing
     end
 
+    level.level == 1 && return log_time(logger, message, kwargs...)
+
     level_name = level_to_string(level)
     msg_timestamp = stamp_builder()
 
@@ -69,15 +73,31 @@ function handle_message(logger::QXLogger, level, message, _module, group, id,
         formatted_message *= " -@-> $(filepath):$(line)"
     end
     formatted_message *= "\n"
-    if logger.log_path === nothing
-        stream = logger.stream
-        write(stream, formatted_message)
-    else
-        stream = open(logger.log_path, "a+")
-        write(stream, formatted_message)
-        close(stream)
-    end
+    write(logger.stream, formatted_message)
+    flush(logger.stream)
     nothing
+end
+
+function log_time(logger::QXLogger, time_report, kwargs...)
+    args = collect_args(kwargs)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        open(logger.time_log_path, "a") do io
+            time_report *= join([string(k) * ":" * string(v) for (k, v) in pairs(args)], " ")
+            time_report *= "\n"
+            write(io, time_report)
+        end
+    end
+end
+
+function collect_args(kwargs)
+    args = kwargs[1][2]
+    n_gpus, n_workers, n_procs = functional() ? length(devices()) : 0, length(workers()), nprocs()
+    (n_gpus, n_workers, n_procs) = MPI.Reduce((n_gpus, n_workers, n_procs), .+, 0, MPI.COMM_WORLD)
+    args["gpus"] = n_gpus
+    args["workers"] = n_workers
+    args["processes"] = n_procs
+    args["comm_size"] = MPI.Comm_size(MPI.COMM_WORLD)
+    args
 end
 
 #======================================================================#
@@ -114,11 +134,14 @@ function get_log_path(root_path="./")
         rank = MPI.Comm_rank(comm)
         log_uid = rank == 0 ? uuid4() : nothing
         log_uid = MPI.bcast(log_uid, 0, comm)
-        log_dir = joinpath(root_path, "QXContexts_io_" * string(log_uid))
+        logs_dir = joinpath(root_path, "qxcontexts_logs")
+        !isdir(logs_dir) && mkdir(logs_dir)
+        log_dir = joinpath(logs_dir, string(log_uid))
         !isdir(log_dir) && mkdir(log_dir)
-        log_dir = joinpath(log_dir, "rank_$(rank)")
-        !isdir(log_dir) && mkdir(log_dir)
-        return log_dir
+        rank_log_dir = joinpath(log_dir, "rank_$(rank)")
+        !isdir(rank_log_dir) && mkdir(rank_log_dir)
+        time_log = rank == 0 ? joinpath(logs_dir, "qxtime.log") : nothing
+        return rank_log_dir, time_log
     else
         error("MPI must be initialized to use QXLogger with the default stream.")
     end

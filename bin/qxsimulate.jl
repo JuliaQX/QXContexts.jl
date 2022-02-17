@@ -62,8 +62,8 @@ function main(ARGS)
     comm = MPI.COMM_WORLD
     root = 0
     
-    log_dir = get_log_path(log_dir)
-    logger = QXLogger(; log_dir=log_dir, level=Logging.Info)
+    log_dir, time_log = get_log_path(log_dir)
+    logger = QXLogger(; log_dir=log_dir, time_log=time_log, level=Logging.Info)
     global_logger(logger)
 
     # Start up local Julia cluster
@@ -84,7 +84,6 @@ function main(ARGS)
     @eval @everywhere workers() logger = QXLogger(; log_dir=$log_dir, level=Logging.Info)
     @everywhere workers() global_logger(logger)
 
-
     #===================================================#
     # Initialise Contexts.
     #===================================================#
@@ -100,7 +99,6 @@ function main(ARGS)
     end
     @everywhere workers() eval($expr)
 
-
     #===================================================#
     # Start Simulation.
     #===================================================#
@@ -115,21 +113,15 @@ function main(ARGS)
     @info "Starting simulation"
     results = simctx(amps_queue)
 
-
     #===================================================#
     # Collect results and clean up
     #===================================================#
     @info "Collecting results"
     results = collect_results(simctx, results, root, comm)
     save_results(simctx, results; output_file=output_file)
+    elapsed_time = "time:$(string(time() - start_time)) "
+    @logmsg LogLevel(1) elapsed_time args
     rmprocs(workers())
-    elapsed_time = time() - start_time
-    open("qxtime.log", "a") do io
-        time_report = "time:" * string(elapsed_time) * " "
-        time_report *= join([string(k) * ":" * string(v) for (k, v) in pairs(args)], " ")
-        time_report *= "\n"
-        write(io, time_report)
-    end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
