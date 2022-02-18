@@ -81,7 +81,6 @@ end
 
 """Write the given results to a file."""
 function save_results(ctx::AbstractSimContext, results::Dict{NTuple{N, Bool}, T}; output_dir="", output_file="") where {N, T}
-    results === nothing && return
     output_file == "" && (output_file = "results.txt")
     output_file = joinpath(output_dir, output_file)
     open(output_file, "a") do io
@@ -91,6 +90,7 @@ function save_results(ctx::AbstractSimContext, results::Dict{NTuple{N, Bool}, T}
         end
     end
 end
+save_results(ctx::AbstractSimContext, results::Nothing; kwargs...) = return
 
 #===================================================#
 # Concrete Implementations of AbstractSimContext
