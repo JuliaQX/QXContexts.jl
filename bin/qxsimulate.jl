@@ -1,97 +1,68 @@
 using ArgParse
-using MPI
 using Distributed
 using CUDA
 using QXContexts
 using Logging
+
 
 function parse_commandline(ARGS)
     s = ArgParseSettings("QXContexts")
 
     @add_arg_table! s begin
         "--dsl", "-d"
-            help = "DSL file path"
+            help = "DSL file path."
             required = true
             arg_type = String
         "--parameter-file", "-p"
-            help = "Parameter file path, default is to use dsl filename with .yml suffix"
+            help = "Parameter file path, default is to use dsl filename with .yml suffix."
             default = nothing
             arg_type = String
         "--data-file", "-i"
-            help = "Input data file path, default is to use dsl filename with .jld2 suffix"
+            help = "Input data file path, default is to use dsl filename with .jld2 suffix."
             default = nothing
             arg_type = String
         "--output-file", "-o"
-            help = "Output data file path"
+            help = "Output data file path."
             default = "qxsimulation_results.txt"
             arg_type = String
         "--log-dir", "-l"
             help = "Directory for log files."
             default = "./"
             arg_type = String
+        "--log-level"
+            help = "Set the log level."
+            default = 0
+            arg_type = Integer
         "--gpu", "-g"
-            help = "Use GPU if available"
+            help = "Use GPU if available."
+            action = :store_true
+        "--warm-up", "-w"
+            help = "Run a small warm up simulation before the main simaultion."
             action = :store_true
         "--elt", "-e"
-            help = "Element type to use for tensors"
+            help = "Element type to use for tensors."
             default = ComplexF32
             arg_type = DataType
     end
     return parse_args(ARGS, s)
 end
 
-function main(ARGS)
-    args = parse_commandline(ARGS)
-    dsl_file    = args["dsl"]
-    data_file   = args["data-file"]
-    param_file  = args["parameter-file"]
-    output_file = args["output-file"]
-    log_dir     = args["log-dir"]
-    use_gpu     = args["gpu"]
-    elt         = args["elt"]
-
-    data_file  === nothing && (data_file  = splitext(dsl_file)[1] * ".jld2")
-    param_file === nothing && (param_file = splitext(dsl_file)[1] * ".yml")
-    start_time = time()
-
-    #===================================================#
-    # Initialise processes.
-    #===================================================#
-    # Initialise mpi
-    MPI.Init()
-    comm = MPI.COMM_WORLD
-    root = 0
-    
-    log_dir, time_log = get_log_path(log_dir)
-    logger = QXLogger(; log_dir=log_dir, time_log=time_log, level=Logging.Info)
-    global_logger(logger)
-
-    # Start up local Julia cluster
-    using_cuda = use_gpu && CUDA.functional() && !isempty(devices())
-    if using_cuda
-        addprocs(length(devices()); exeflags="--project")
-        @everywhere workers() eval(:(using CUDA))
-
-        # Assign GPUs to worker processes
-        for (worker, gpu_dev) in zip(workers(), devices())
-            remotecall(device!, worker, gpu_dev)
-        end
-    else
-        addprocs(1; exeflags="--project")
-    end
-    @everywhere workers() eval(:(using QXContexts))
-    @everywhere workers() eval(:(using Logging))
-    @eval @everywhere workers() logger = QXLogger(; log_dir=$log_dir, level=Logging.Info)
-    @everywhere workers() global_logger(logger)
-
-    #===================================================#
-    # Initialise Contexts.
-    #===================================================#
-    @info "Setting up simulation context"
+function run_simulation(
+                        dsl_file,
+                        data_file,
+                        param_file,
+                        output_file,
+                        using_cuda, 
+                        comm, 
+                        root, 
+                        elt;
+                        save_output=true
+                        )
+    @info "Initialising simulation context"
     cg, _ = parse_dsl_files(dsl_file)
     simctx = SimulationContext(param_file, cg, comm)
 
-    @info "Setting up contraction context"
+    @info "Initialising contraction contexts"
     expr = quote
         cg, _ = parse_dsl_files($dsl_file, $data_file)
         T = $using_cuda ? CuArray{$elt} : Array{$elt}
@@ -99,9 +70,6 @@ function main(ARGS)
     end
     @everywhere workers() eval($expr)
 
-    #===================================================#
-    # Start Simulation.
-    #===================================================#
     @info "Initialising work queues"
     jobs_queue, amps_queue = start_queues(simctx)
 
@@ -113,14 +81,43 @@ function main(ARGS)
     @info "Starting simulation"
     results = simctx(amps_queue)
 
-    #===================================================#
-    # Collect results and clean up
-    #===================================================#
     @info "Collecting results"
     results = collect_results(simctx, results, root, comm)
-    save_results(simctx, results; output_file=output_file)
-    elapsed_time = "time:$(string(time() - start_time)) "
-    @logmsg LogLevel(1) elapsed_time args
+    save_output && save_results(simctx, results; output_file=output_file)
+end
+
+function main(ARGS)
+    args = parse_commandline(ARGS)
+    dsl_file    = args["dsl"]
+    data_file   = args["data-file"]
+    param_file  = args["parameter-file"]
+    output_file = args["output-file"]
+    log_dir     = args["log-dir"]
+    log_level   = args["log-level"]
+    using_cuda  = args["gpu"] && CUDA.functional() && !isempty(devices())
+    warm_up     = args["warm-up"]
+    elt         = args["elt"]
+
+    data_file  === nothing && (data_file  = splitext(dsl_file)[1] * ".jld2")
+    param_file === nothing && (param_file = splitext(dsl_file)[1] * ".yml")
+    time_log = ""
+
+    # Set up and run the simulation.
+    comm, root = QXContexts.initialise_local_julia_cluster(using_cuda, log_dir, log_level)
+    if warm_up
+        path = dirname(dirname(pathof(QXContexts)))
+        dsl   = joinpath(path, "examples/ghz/ghz_5.qx")
+        data  = joinpath(path, "examples/ghz/ghz_5.jld2")
+        param = joinpath(path, "examples/ghz/ghz_5_uniform.yml")
+        out   = joinpath(path, "examples/ghz/ghz_out.jld2")
+        warm_up_time = @elapsed run_simulation(dsl, data, param, out, using_cuda, comm, root, elt; save_output=false)
+        time_log *= "warm-up-time:$warm_up_time "
+    end
+    t = @elapsed run_simulation(dsl_file, data_file, param_file, output_file, using_cuda, comm, root, elt)
+
+    # Clean up
+    time_log *= "time:$t "
+    @logmsg LogLevel(1) time_log args
     rmprocs(workers())
 end
 

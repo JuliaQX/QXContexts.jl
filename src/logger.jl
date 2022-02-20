@@ -92,7 +92,8 @@ end
 function collect_args(kwargs)
     args = kwargs[1][2]
     n_gpus, n_workers, n_procs = functional() ? length(devices()) : 0, length(workers()), nprocs()
-    (n_gpus, n_workers, n_procs) = MPI.Reduce((n_gpus, n_workers, n_procs), .+, 0, MPI.COMM_WORLD)
+    rbuf = MPI.Reduce((n_gpus, n_workers, n_procs), .+, 0, MPI.COMM_WORLD)
+    (n_gpus, n_workers, n_procs) = rbuf === nothing ? (0, 0, 0) : rbuf
     args["gpus"] = n_gpus
     args["workers"] = n_workers
     args["processes"] = n_procs

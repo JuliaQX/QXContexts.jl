@@ -12,7 +12,8 @@ include("../bin/qxsimulate.jl")
         args = ["-d", dsl_input,
                 "-p", param_file,
                 "-o", output_fname,
-                "-l", path]
+                "-l", path,
+                "--gpu", "--warm-up"]
         main(args)
         @test isfile(output_fname)
     end

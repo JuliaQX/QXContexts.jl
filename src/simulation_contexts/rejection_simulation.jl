@@ -83,8 +83,8 @@ end
 
 """Initialise and return the queues used for the simulation."""
 function start_queues(ctx::RejectionSim)
-    jobs_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, CartesianIndex}}(32))
-    amps_queue = RemoteChannel(()->AmplitudeChannel{ComplexF32}(ctx.num_slices, 32))
+    jobs_queue = RemoteChannel(() -> Channel{Tuple{Vector{Bool}, CartesianIndex}}(32))
+    amps_queue = RemoteChannel(() -> AmplitudeChannel{ComplexF32}(ctx.num_slices, 32))
     errormonitor(@async schedule_contraction_jobs(ctx, jobs_queue))
     jobs_queue, amps_queue
 end
