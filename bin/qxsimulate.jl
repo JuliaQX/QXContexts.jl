@@ -37,7 +37,7 @@ function parse_commandline(ARGS)
             help = "Use GPU if available."
             action = :store_true
         "--warm-up", "-w"
-            help = "Run a small warm up simulation before the main simaultion."
+            help = "Run a warm up simulation before the main simaultion."
             action = :store_true
         "--elt", "-e"
             help = "Element type to use for tensors."
@@ -105,12 +105,7 @@ function main(ARGS)
     # Set up and run the simulation.
     comm, root = QXContexts.initialise_local_julia_cluster(using_cuda, log_dir, log_level)
     if warm_up
-        path = dirname(dirname(pathof(QXContexts)))
-        dsl   = joinpath(path, "examples/ghz/ghz_5.qx")
-        data  = joinpath(path, "examples/ghz/ghz_5.jld2")
-        param = joinpath(path, "examples/ghz/ghz_5_uniform.yml")
-        out   = joinpath(path, "examples/ghz/ghz_out.jld2")
-        warm_up_time = @elapsed run_simulation(dsl, data, param, out, using_cuda, comm, root, elt; save_output=false)
+        warm_up_time = @elapsed run_simulation(dsl_file, data_file, param_file, output_file, using_cuda, comm, root, elt; save_output=false)
         time_log *= "warm-up-time:$warm_up_time "
     end
     t = @elapsed run_simulation(dsl_file, data_file, param_file, output_file, using_cuda, comm, root, elt)
