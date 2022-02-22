@@ -69,7 +69,7 @@ function ListSim(slice_params,
     # Determine the contraction jobs to be assigned to the returned simulation context.
     num_slices = haskey(kwargs, :slices) ? kwargs[:slices] : length(slice_params)
     @assert num_slices <= length(slice_params) "Number of slices must be <= $(length(slice_params))"
-    dims = map(x -> slice_params[Symbol("v$(x)")]::Int, 1:num_slices)
+    dims = collect(values(slice_params))[1:num_slices]
     slices = CartesianIndices(Tuple(dims))
     all_jobs = CartesianIndices((num_amps, length(slices)))
     contraction_jobs = get_jobs(all_jobs, rank, comm_size)

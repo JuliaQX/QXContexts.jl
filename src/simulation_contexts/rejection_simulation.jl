@@ -44,7 +44,7 @@ function RejectionSim(slice_params,
     # Get the slices of the tensor network.
     num_slices = haskey(kwargs, :slices) ? kwargs[:slices] : length(slice_params)
     @assert num_slices <= length(slice_params) "Number of slices must be <= $(length(slice_params))"
-    dims = map(x -> slice_params[Symbol("v$(x)")]::Int, 1:num_slices)
+    dims = collect(values(slice_params))[1:num_slices]
     slices = CartesianIndices(Tuple(dims))
 
     # Initialise the random number generator.

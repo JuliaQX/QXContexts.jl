@@ -11,6 +11,7 @@ below.
 using MPI
 using Random
 using Distributed
+using DataStructures: OrderedDict
 using QXContexts.ComputeGraphs: ComputeGraph
 
 export SimulationContext, start_queues, collect_results, save_results
@@ -111,7 +112,8 @@ Slice parameters are extracted from the given ComputeGraph and contraction jobs 
 return simulation context based on the given MPI rank and comm size.
 """
 function SimulationContext(param_file::String, cg::ComputeGraph, rank::Integer=0, comm_size::Integer=1)
-    slice_params = params(cg, ViewCommand)
+    slice_params = convert(OrderedDict, params(cg, ViewCommand))
+    sort!(slice_params)
     sim_params = parse_parameters(param_file)
     get_constructor(sim_params[:method])(
                                         slice_params, 
