@@ -15,7 +15,7 @@ has the correct distribution.
 =#
 
 """Data structure for amplitude simulation context"""
-mutable struct AmplitudeSim <: AbstractSimContext
+mutable struct AmplitudeSim{T} <: AbstractSimContext
     num_qubits::Integer
     num_amps::Integer
     bitstrings::Vector{Vector{Bool}}
@@ -30,6 +30,7 @@ function UniformSim(slice_params,
                     num_qubits::Integer,
                     num_amps::Integer,
                     seed::Integer=42,
+                    elt::DataType=ComplexF32,
                     kwargs...)
     # Check the number of requested ampltiudes doesn't exceed 2^num_qubits.
     log2(num_amps) <= num_qubits || error("Too many amplitudes for the number of qubits.")
@@ -49,7 +50,7 @@ function UniformSim(slice_params,
     all_jobs = CartesianIndices((num_amps, length(slices)))
     contraction_jobs = get_jobs(all_jobs, rank, comm_size)
 
-    AmplitudeSim(num_qubits, num_amps, collect(bitstrings), slices, contraction_jobs)
+    AmplitudeSim{elt}(num_qubits, num_amps, collect(bitstrings), slices, contraction_jobs)
 end
 
 """List simulation constructor for the amplitude simulation context"""
@@ -57,6 +58,7 @@ function ListSim(slice_params,
                 rank,
                 comm_size;
                 bitstrings::Vector{String}=String[],
+                elt::DataType=ComplexF32,
                 kwargs...)
     # Check the list of bitstrings is non-empty.
     isempty(bitstrings) && error("No bitstrings to compute amplitudes for.")
@@ -74,23 +76,23 @@ function ListSim(slice_params,
     all_jobs = CartesianIndices((num_amps, length(slices)))
     contraction_jobs = get_jobs(all_jobs, rank, comm_size)
 
-    AmplitudeSim(num_qubits, num_amps, bitstring_list, slices, contraction_jobs)
+    AmplitudeSim{elt}(num_qubits, num_amps, bitstring_list, slices, contraction_jobs)
 end
 
 """Collect amplitudes from the given queue and store them in a results dictionary."""
-function (ctx::AmplitudeSim)(amps_queue::RemoteChannel)
-    results = Dict{Vector{Bool}, ComplexF32}()
+function (ctx::AmplitudeSim{T})(amps_queue::RemoteChannel) where T <: Number
+    results = Dict{Vector{Bool}, T}()
     for i = 1:length(ctx)
         bitstring, slice, amp = take!(amps_queue)
-        results[bitstring] = get(results, bitstring, 0) + amp[]
+        results[bitstring] = get(results, bitstring, 0) + amp
     end
     results
 end
 
 """Initialise and return the queues used for the simulation."""
-function start_queues(ctx::AmplitudeSim)
+function start_queues(ctx::AmplitudeSim{T}) where T <: Number
     jobs_queue = RemoteChannel(() -> Channel{Tuple{Vector{Bool}, CartesianIndex}}(32))
-    amps_queue = RemoteChannel(() -> Channel{Tuple{Vector{Bool}, CartesianIndex, Array{ComplexF32, 0}}}(32))
+    amps_queue = RemoteChannel(() -> Channel{Tuple{Vector{Bool}, CartesianIndex, T}}(32))
     errormonitor(@async schedule_contraction_jobs(ctx, jobs_queue))
     jobs_queue, amps_queue
 end

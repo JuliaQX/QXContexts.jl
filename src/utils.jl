@@ -1,11 +1,14 @@
-export parse_parameters
+export parse_parameters, run_simulation
 
 using Distributed
 using CUDA
 using Logging
 using DataStructures
+using ArgParse
 
 import YAML
+
+ArgParse.parse_item(::Type{DataType}, x::AbstractString) = getfield(Base, Symbol(x))
 
 """
     parse_parameters(filename::String;
@@ -38,25 +41,25 @@ end
 # https://juliaparallel.github.io/MPI.jl/latest/environment/#MPI.install_mpiexecjl
 """Place a copy of a simulation driver script in the given diretory"""
 function generate_simulation_script(dir::String="./")
-  file = joinpath(dirname(@__DIR__), "bin", "qxsimulate.jl")
-  cp(file, joinpath(dir, "qxsimulate.jl"))
+    file = joinpath(dirname(@__DIR__), "bin", "qxsimulate.jl")
+    cp(file, joinpath(dir, "qxsimulate.jl"))
 end
 
 """Initialise MPI and set up local julia cluster."""
 function initialise_local_julia_cluster(using_cuda, log_dir, log_level)
-  # Initialise mpi
-  MPI.Init()
-  comm = MPI.COMM_WORLD
-  root = 0
+    # Initialise mpi
+    MPI.Init()
+    comm = MPI.COMM_WORLD
+    root = 0
 
-  log_dir, time_log = get_log_path(log_dir)
-  log_level = Logging.LogLevel(log_level)
-  logger = QXLogger(; log_dir=log_dir, time_log=time_log, level=log_level)
-  global_logger(logger)
+    log_dir, time_log = get_log_path(log_dir)
+    log_level = Logging.LogLevel(log_level)
+    logger = QXLogger(; log_dir=log_dir, time_log=time_log, level=log_level)
+    global_logger(logger)
 
-  # Start up local Julia cluster
-  initialise_worker_processes(using_cuda, log_dir, log_level)
-  comm, root
+    # Start up local Julia cluster
+    initialise_worker_processes(using_cuda, log_dir, log_level)
+    comm, root
 end
 
 """Spawn worker processes and load the relevant packages."""

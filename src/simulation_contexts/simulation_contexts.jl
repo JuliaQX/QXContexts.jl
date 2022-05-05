@@ -12,6 +12,7 @@ using MPI
 using Random
 using Distributed
 using DataStructures: OrderedDict
+using FileIO
 using QXContexts.ComputeGraphs: ComputeGraph
 
 export SimulationContext, start_queues, collect_results, save_results
@@ -82,14 +83,9 @@ end
 
 """Write the given results to a file."""
 function save_results(ctx::AbstractSimContext, results::Dict{NTuple{N, Bool}, T}; output_dir="", output_file="") where {N, T}
-    output_file == "" && (output_file = "results.txt")
-    output_file = joinpath(output_dir, output_file)
-    open(output_file, "a") do io
-        for (bitstring, result) in pairs(results)
-            bitstring = prod([bit ? "1" : "0" for bit in bitstring])
-            println(io, bitstring, " : ", result)
-        end
-    end
+    output_file == "" && (output_file = "results.jld2")
+    output_path = joinpath(output_dir, output_file)
+    save(output_path, "amplitudes", results)
 end
 save_results(ctx::AbstractSimContext, results::Nothing; kwargs...) = return
 
@@ -111,20 +107,26 @@ Returns an instance of the simulation context specified in the given parameter f
 Slice parameters are extracted from the given ComputeGraph and contraction jobs are assinged to the
 return simulation context based on the given MPI rank and comm size.
 """
-function SimulationContext(param_file::String, cg::ComputeGraph, rank::Integer=0, comm_size::Integer=1)
-    slice_params = convert(OrderedDict, params(cg, ViewCommand))
-    sort!(slice_params)
+function SimulationContext(
+                        param_file::String, 
+                        cg::ComputeGraph, 
+                        rank::Integer=0, 
+                        comm_size::Integer=1, 
+                        elt::DataType=ComplexF32
+                        )
+    slice_params = convert(OrderedDict, params(cg, ViewCommand)) |> sort!
     sim_params = parse_parameters(param_file)
     get_constructor(sim_params[:method])(
                                         slice_params, 
                                         rank, 
                                         comm_size;
+                                        elt = elt,
                                         sim_params[:params]...
                                         )
 end
 
-function SimulationContext(param_file::String, cg::ComputeGraph, comm::MPI.Comm)
-    SimulationContext(param_file, cg, MPI.Comm_rank(comm), MPI.Comm_size(comm))
+function SimulationContext(param_file::String, cg::ComputeGraph, comm::MPI.Comm, elt::DataType=ComplexF32)
+    SimulationContext(param_file, cg, MPI.Comm_rank(comm), MPI.Comm_size(comm), elt)
 end
 
 get_constructor(func_name::String) = getfield(QXContexts, Symbol(func_name*"Sim"))

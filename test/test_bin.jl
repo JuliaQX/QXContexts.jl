@@ -8,11 +8,12 @@ include("../bin/qxsimulate.jl")
 
     # Test uniform simaultion
     mktempdir() do path
-        output_fname = joinpath(path, "out.txt")
+        output_fname = joinpath(path, "out.jld2")
         args = ["-d", dsl_input,
                 "-p", param_file,
                 "-o", output_fname,
                 "-l", path,
+                "-e", "ComplexF64",
                 "--gpu", "--warm-up"]
         main(args)
         @test isfile(output_fname)
@@ -21,12 +22,12 @@ include("../bin/qxsimulate.jl")
     # Test rejection simaultion
     param_file = joinpath(ghz_example_dir, "ghz_5_rejection.yml")
     mktempdir() do path
-        output_fname = joinpath(path, "out.txt")
+        output_fname = joinpath(path, "out.jld2")
         args = ["-d", dsl_input,
                 "-p", param_file,
                 "-o", output_fname,
                 "-l", path]
         main(args)
-        @test isfile(joinpath(path, "amps_out.txt"))
+        @test isfile(output_fname)
     end
 end

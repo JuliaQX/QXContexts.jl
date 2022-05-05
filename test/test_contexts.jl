@@ -26,7 +26,7 @@ ghz_results = Dict{Vector{Bool}, ComplexF32}(
 
     # Test job fetching and storing results
     jobs_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, CartesianIndex}}(32))
-    amps_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, CartesianIndex, Array{ComplexF32, 0}}}(32))
+    amps_queue = RemoteChannel(()->Channel{Tuple{Vector{Bool}, CartesianIndex, ComplexF32}}(32))
     for _ = 1:7 put!(jobs_queue, (bitstring, slice)) end
     t = @async conctx(jobs_queue, amps_queue)
     results = [take!(amps_queue) for _ = 1:7]

@@ -23,7 +23,7 @@ end
     params = parse_parameters(param_file)
     num_amps = params[:params][:num_amps]
     simctx = SimulationContext(param_file, cg)
-    @test typeof(simctx) == QXContexts.AmplitudeSim
+    @test typeof(simctx) <: QXContexts.AmplitudeSim
     contraction_jobs = [job for job in simctx]
     @test length(contraction_jobs) == 4 * num_amps
 
@@ -32,7 +32,7 @@ end
     params = parse_parameters(param_file)
     num_amps = params[:params][:num_amps]
     simctx = SimulationContext(param_file, cg)
-    @test typeof(simctx) == QXContexts.AmplitudeSim
+    @test typeof(simctx) <: QXContexts.AmplitudeSim
     contraction_jobs = [job for job in simctx]
     @test length(contraction_jobs) == 4 * num_amps
 
@@ -48,7 +48,7 @@ end
     @test queued_jobs == contraction_jobs
 
     # Test collecting amplitudes
-    amp = fill(ComplexF32(1.0),())
+    amp = ComplexF32(1.0)
     slice = CartesianIndex((1,))
     for i = 1:length(simctx)/2
         put!(amps_queue, ([0, 1], slice, amp))
@@ -62,7 +62,7 @@ end
     results = Dict((true, true) => 1.0, (true, false) => 1.0+1.0im)
     mktempdir() do path
         save_results(simctx, results; output_dir = path)
-        @test isfile(path * "/results.txt")
+        @test isfile(path * "/results.jld2")
     end
 end
 
@@ -76,7 +76,7 @@ end
     params = parse_parameters(param_file)
     num_samples = params[:params][:num_samples]
     simctx = SimulationContext(param_file, cg)
-    @test typeof(simctx) == QXContexts.RejectionSim
+    @test typeof(simctx) <: QXContexts.RejectionSim
 
     # Test if generated bitstring sequence is reproducible.
     bitstring_batch = [QXContexts.get_bitstring!(simctx, i) for i in 1:10]
@@ -88,8 +88,8 @@ end
     amps_queue = RemoteChannel(()->QXContexts.AmplitudeChannel{ComplexF32}(length(slices), 7))
     amp_channel = Distributed.lookup_ref(Distributed.remoteref_id(amps_queue)).c
     for n in 1:simctx.num_samples
-        for slice in slices put!(amps_queue, (bitstring, slice, fill(ComplexF32(0.0)))) end
-        for slice in slices put!(amps_queue, (bitstring, slice, fill(ComplexF32(1.0)))) end
+        for slice in slices put!(amps_queue, (bitstring, slice, ComplexF32(0.0))) end
+        for slice in slices put!(amps_queue, (bitstring, slice, ComplexF32(1.0))) end
     end
     @test length(filter(x -> x !== nothing, amp_channel.bitstrings)) == 2 * simctx.num_samples
     @test bitstring in amp_channel.bitstrings
@@ -109,7 +109,6 @@ end
     counts = Dict((true, true) => 1, (true, false) => 2)
     mktempdir() do path
         save_results(simctx, (amplitudes, counts); output_dir = path)
-        @test isfile(path * "/amps_results.txt")
-        @test isfile(path * "/counts_results.txt")
+        @test isfile(path * "/results.jld2")
     end
 end

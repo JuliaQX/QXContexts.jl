@@ -10,7 +10,7 @@ saved as the simulation's output.
 include("amplitude_channel.jl")
 
 """Data structure for rejection sampling simulation context."""
-mutable struct RejectionSim <: AbstractSimContext
+mutable struct RejectionSim{T} <: AbstractSimContext
     num_qubits::Integer
     num_samples::Integer
     samples_collected::Integer
@@ -36,6 +36,7 @@ function RejectionSim(slice_params,
                     M::Real=0.0,
                     fix_M::Bool=false,
                     seed::Integer=42,
+                    elt::DataType=ComplexF32,
                     kwargs...)
     num_samples = num_samples ÷ comm_size + (rank < (num_samples % comm_size))
     M = fix_M ? M : 1/2^num_qubits
@@ -52,12 +53,12 @@ function RejectionSim(slice_params,
     rng = MersenneTwister(seed)
     rng_checkpoint = copy(rng)
 
-    RejectionSim(num_qubits, num_samples, 0, slices, length(slices), M, fix_M, seed, rng, rng_checkpoint, 1)
+    RejectionSim{elt}(num_qubits, num_samples, 0, slices, length(slices), M, fix_M, seed, rng, rng_checkpoint, 1)
 end
 
 """Run the rejection sampling algorithm using the stream of ampltiudes in the given queue."""
-function (ctx::RejectionSim)(amps_queue::RemoteChannel)
-    amplitudes = Dict{Vector{Bool}, ComplexF32}()
+function (ctx::RejectionSim{T})(amps_queue::RemoteChannel) where T <: Number
+    amplitudes = Dict{Vector{Bool}, T}()
     counts = Dict{Vector{Bool}, Int64}()
     rng = MersenneTwister(ctx.seed)
     N = 2^ctx.num_qubits
@@ -82,9 +83,9 @@ function (ctx::RejectionSim)(amps_queue::RemoteChannel)
 end
 
 """Initialise and return the queues used for the simulation."""
-function start_queues(ctx::RejectionSim)
+function start_queues(ctx::RejectionSim{T}) where T <: Number
     jobs_queue = RemoteChannel(() -> Channel{Tuple{Vector{Bool}, CartesianIndex}}(32))
-    amps_queue = RemoteChannel(() -> AmplitudeChannel{ComplexF32}(ctx.num_slices, 32))
+    amps_queue = RemoteChannel(() -> AmplitudeChannel{T}(ctx.num_slices, 32))
     errormonitor(@async schedule_contraction_jobs(ctx, jobs_queue))
     jobs_queue, amps_queue
 end
@@ -98,12 +99,9 @@ end
 
 function save_results(ctx::RejectionSim, results::Tuple{Dict, Dict}; output_dir::String="", output_file::String="")
     amps, counts = results
-    output_file = joinpath(output_dir, output_file)
-    output_dir = dirname(output_file)
-    output_file = basename(output_file)
-    output_file = output_file == "" ? "results.txt" : output_file
-    save_results(ctx, amps; output_dir = output_dir, output_file = "amps_" * output_file)
-    save_results(ctx, counts; output_dir = output_dir, output_file = "counts_" * output_file)
+    output_file == "" && (output_file = "results.jld2")
+    output_path = joinpath(output_dir, output_file)
+    save(output_path, "amplitudes", amps, "counts", counts)
 end
 
 function get_bitstring!(ctx::RejectionSim, i::Integer)

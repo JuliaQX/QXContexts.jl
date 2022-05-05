@@ -1,7 +1,7 @@
 #=
 This file defines an implementation of AbstractChannel called an AmplitudeChannel.
 
-This channel is intended to collect sliced probability amplitudes a produce output
+This channel is intended to collect sliced probability amplitudes and output
 full amplitudes to be used in rejection sampling. The sliced amplitudes are stored
 and accumulated in an array along with a set of cartesian indices indicating which
 slices have been accumulated. Once all slices of an amplitude are collected, the
@@ -48,9 +48,8 @@ end
 # Channel Interface
 #===================================================#
 """Store and accumulate the given amplitude in the channel"""
-function put!(c::AmplitudeChannel{V}, result::Tuple{Vector{Bool}, CartesianIndex, Array{V, 0}}) where V
+function put!(c::AmplitudeChannel{V}, result::Tuple{Vector{Bool}, CartesianIndex, V}) where V
     bitstring, slice, amp = result
-    amp = amp[] # Flatten the amplitude from a zero dim array to a scalar.
     lock(c.mod_cond)
     try
         inds = get_inds(c, bitstring)

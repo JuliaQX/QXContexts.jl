@@ -283,6 +283,7 @@ function (ctx::QXContext)(jobs_queue::RemoteChannel, amps_queue::RemoteChannel)
         (bitstring, slice) = take!(jobs_queue)
         @debug "Taking job bitstring=$(prod(string.(Int.(bitstring)))) slice=$(slice)"
         amp = ctx(bitstring, slice)
+        amp = CUDA.@allowscalar amp[]
         @debug "Putting result of job bitstring=$(prod(string.(Int.(bitstring)))) slice=$(slice) into queue"
         put!(amps_queue, (bitstring, slice, amp))
     end

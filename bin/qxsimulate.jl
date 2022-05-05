@@ -60,7 +60,7 @@ function run_simulation(
                         )
     @info "Initialising simulation context"
     cg, _ = parse_dsl_files(dsl_file)
-    simctx = SimulationContext(param_file, cg, comm)
+    simctx = SimulationContext(param_file, cg, comm, elt)
 
     @info "Initialising contraction contexts"
     expr = quote
