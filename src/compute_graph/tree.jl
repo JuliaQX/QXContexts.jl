@@ -10,9 +10,11 @@ mutable struct ComputeNode{T}
     op::Union{Nothing, T}
     children::Vector{ComputeNode}
     parent::ComputeNode
+
     # Root constructor
     ComputeNode{T}(data) where T = new{T}(data, ComputeNode[])
     ComputeNode{T}() where T = new{T}(nothing, ComputeNode[])
+    
     # Child node constructor
     ComputeNode{T}(data, parent::ComputeNode{U}) where {T, U} = new{T}(data, ComputeNode[], parent)
 end
