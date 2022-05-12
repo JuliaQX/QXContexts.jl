@@ -34,10 +34,10 @@ using QXContexts.ComputeGraphs
 using OMEinsum
 using DataStructures
 using CUDA
+using Distributed: RemoteChannel
 
-export gettensor, settensor!, deletetensor!, set_open_bonds!, set_slice_vals!
-export AbstractContext, QXContext, compute_amplitude!
-export ctxmap, ctxgather, ctxreduce
+export AbstractContext, QXContext
+export set_open_bonds!, set_slice_vals!
 
 abstract type AbstractContext end
 
@@ -181,6 +181,16 @@ end
 QXContext(cg::ComputeGraph) = QXContext{Array{ComplexF32}}(cg)
 
 """
+    costs(ctx::QXContext)
+
+Compute the time and space costs of executing the given contraction context.
+
+Returns two arrays containing the number of operations and memory footprint
+during contraction respectively.
+"""
+ComputeGraphs.costs(ctx::QXContext) = ComputeGraphs.costs(ctx.cg, ctx.params)
+
+"""
     gettensor(ctx::QXContext, sym)
 
 Function to retrieve tensors by key
@@ -234,15 +244,15 @@ Base.zero(::QXContext{T}) where T = zero(eltype(T))
 Base.eltype(::QXContext{T}) where T = eltype(T)
 
 """
-    set_open_bonds!(ctx::QXContext, bitstring::String)
+    set_open_bonds!(ctx::QXContext, bitstring::Vector{Bool})
 
 Given a bitstring, set the open bonds to values so contracting the network will
 calculate the amplitude of this bitstring
 """
-function set_open_bonds!(ctx::QXContext, bitstring::String="")
-    if bitstring == "" bitstring = "0"^length(ctx.output_dims) end
+function set_open_bonds!(ctx::QXContext, bitstring::Vector{Bool}=Bool[])
+    if length(bitstring) == 0 bitstring = Bool[0 for _ = 1:length(ctx.output_dims)] end
     @assert length(bitstring) == length(ctx.output_dims) "Bitstring length must match nubmer of outputs"
-    for (i, key) in enumerate(keys(ctx.output_dims)) ctx[key] = parse(Int, bitstring[i]) end
+    for (i, key) in enumerate(keys(ctx.output_dims)) ctx[key] = Int(bitstring[i]) end
 end
 
 """
@@ -250,8 +260,9 @@ end
 
 For each bond that is being sliced set the dimension to slice on.
 """
-function set_slice_vals!(ctx::QXContext, slice_values::Vector{Int})
+function set_slice_vals!(ctx::QXContext, slice_values::CartesianIndex)
     # set slice values and remove any already set
+    slice_values = Tuple(slice_values)
     for (i, key) in enumerate(keys(ctx.slice_dims))
         if i > length(slice_values)
             delete!(ctx.params, key)
@@ -271,36 +282,20 @@ function (ctx::QXContext)()
     gettensor(ctx, output(ctx.cg))
 end
 
-"""
-    compute_amplitude!(ctx::QXContext, bitstring::String; max_slices=nothing)
-
-Calculate a single amplitude with the given context and bitstring. Involves a sum over
-contributions from each slice. Can optionally set the number of bonds. By default all slices
-are used.
-"""
-function compute_amplitude!(ctx::QXContext, bitstring::String; max_slices=nothing)
+function (ctx::QXContext)(bitstring::Vector{Bool}, slice::CartesianIndex)
     set_open_bonds!(ctx, bitstring)
-    amplitude = nothing
-    for p in SliceIterator(ctx.cg, max_slices=max_slices)
-        set_slice_vals!(ctx, p)
-        if amplitude === nothing
-            amplitude = ctx()
-        else
-            amplitude += ctx()
-        end
-    end
-    amplitude = convert(Array, amplitude) # if a gpu array convert back to gpu
-    if ndims(amplitude) == 0
-        amplitude = amplitude[]
-    end
-    amplitude
+    set_slice_vals!(ctx, slice)
+    ctx()
 end
 
-"""Map over items as placeholder for more complicated contexts"""
-ctxmap(f, ctx::QXContext, items) = map(f, items)
-
-"""Simple gather as placeholder for distributed contexts"""
-ctxgather(ctx::QXContext, items) = items
-
-"""Simple gather as placeholder for distributed contexts"""
-ctxreduce(f, ctx::QXContext, items) = reduce(f, items)
+function (ctx::QXContext)(jobs_queue::RemoteChannel, amps_queue::RemoteChannel)
+    while isopen(jobs_queue)
+        (bitstring, slice) = take!(jobs_queue)
+        @debug "Taking job bitstring=$(prod(string.(Int.(bitstring)))) slice=$(slice)"
+        amp = ctx(bitstring, slice)
+        amp = CUDA.@allowscalar amp[]
+        @debug "Putting result of job bitstring=$(prod(string.(Int.(bitstring)))) slice=$(slice) into queue"
+        put!(amps_queue, (bitstring, slice, amp))
+    end
+    nothing
+end

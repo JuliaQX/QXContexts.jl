@@ -1,130 +1,18 @@
 module Logger
 # Follow approach taken by https://github.com/CliMA/Oceananigans.jl logger.jl
 
-export QXLogger, QXLoggerMPIPerRank, QXLoggerMPIShared
-
 using Logging
 using Dates
 using MPI
-using TimerOutputs
+# using TimerOutputs
+import CUDA: functional, devices
+import Distributed: myid, workers, nprocs
 import UUIDs: UUID, uuid4
-
 import Logging: shouldlog, min_enabled_level, catch_exceptions, handle_message
 
+export QXLogger, get_log_path
+
 const PerfLogger = Logging.LogLevel(-125)
-
-struct QXLogger <: Logging.AbstractLogger
-    stream::IO
-    min_level::Logging.LogLevel
-    message_limits::Dict{Any,Int}
-    show_info_source::Bool
-    session_id::UUID
-end
-
-struct QXLoggerMPIShared <: Logging.AbstractLogger
-    stream::Union{MPI.FileHandle, Nothing}
-    min_level::Logging.LogLevel
-    message_limits::Dict{Any,Int}
-    show_info_source::Bool
-    session_id::UUID
-    comm::MPI.Comm
-end
-
-struct QXLoggerMPIPerRank <: Logging.AbstractLogger
-    stream::Union{MPI.FileHandle, Nothing}
-    min_level::Logging.LogLevel
-    message_limits::Dict{Any,Int}
-    show_info_source::Bool
-    session_id::UUID
-    comm::MPI.Comm
-    root_path::String
-end
-
-
-"""
-    QXLogger(stream::IO=stdout, level=Logging.Info; show_info_source=false)
-
-Single-process logger for QXContexts.
-"""
-function QXLogger(stream::IO=stdout, level=Logging.Info; show_info_source=false)
-    return QXLogger(stream, level, Dict{Any,Int}(), show_info_source, uuid4())
-end
-
-"""
-    QXLoggerMPIShared(stream=nothing,
-                      level=Logging.Info;
-                      show_info_source=false,
-                      comm=MPI.COMM_WORLD,
-                      path::String=".")
-
-MPI-IO enabled logger that outputs to a single shared file for all ranks.
-"""
-function QXLoggerMPIShared(stream=nothing,
-                           level=Logging.Info;
-                           show_info_source=false,
-                           comm=MPI.COMM_WORLD,
-                           path::String=".")
-    if MPI.Initialized()
-        if MPI.Comm_rank(comm) == 0
-            log_uid = uuid4()
-        else
-            log_uid = nothing
-        end
-        log_uid = MPI.bcast(log_uid, 0, comm)
-        f_stream = MPI.File.open(comm, joinpath(path, "QXContexts_io_shared_$(log_uid).log"), read=true,  write=true, create=true)
-    else
-        error("""MPI is required for this logger. Pleasure ensure MPI is initialised. Use `QXLogger` for non-distributed logging""")
-    end
-    return QXLoggerMPIShared(f_stream, level, Dict{Any,Int}(), show_info_source, log_uid, comm)
-end
-
-"""
-    QXLoggerMPIPerRank(stream=nothing,
-                       level=Logging.Info;
-                       show_info_source=false,
-                       comm=MPI.COMM_WORLD,
-                       path::String=".")
-
-MPI-friendly logger that outputs to a new file per rank. Creates a UUIDs.uuid4 labelled directory and a per-rank log-file
-"""
-function QXLoggerMPIPerRank(stream=nothing,
-                            level=Logging.Info;
-                            show_info_source=false,
-                            comm=MPI.COMM_WORLD,
-                            path::String=".")
-    if MPI.Initialized()
-        if MPI.Comm_rank(comm) == 0
-            log_uid = uuid4()
-        else
-            log_uid = nothing
-        end
-        log_uid = MPI.bcast(log_uid, 0, comm)
-    else
-        throw("""MPI is required for this logger. Pleasure ensure MPI is initialised. Use `QXLogger` for non-distributed logging""")
-    end
-    return QXLoggerMPIPerRank(stream, level, Dict{Any,Int}(), show_info_source, log_uid, comm, path)
-end
-
-shouldlog(logger::QXLogger, level, _module, group, id) = get(logger.message_limits, id, 1) > 0
-shouldlog(logger::QXLoggerMPIShared, level, _module, group, id) = get(logger.message_limits, id, 1) > 0
-shouldlog(logger::QXLoggerMPIPerRank, level, _module, group, id) = get(logger.message_limits, id, 1) > 0
-
-min_enabled_level(logger::QXLogger) = logger.min_level
-min_enabled_level(logger::QXLoggerMPIShared) = logger.min_level
-min_enabled_level(logger::QXLoggerMPIPerRank) = logger.min_level
-
-catch_exceptions(logger::QXLogger) = false
-catch_exceptions(logger::QXLoggerMPIShared) = false
-catch_exceptions(logger::QXLoggerMPIPerRank) = false
-
-function level_to_string(level)
-    level == Logging.Error && return "ERROR"
-    level == Logging.Warn  && return "WARN"
-    level == Logging.Info  && return "INFO"
-    level == Logging.Debug && return "DEBUG"
-    level == PerfLogger && return "PERF"
-    return string(level)
-end
 
 macro perf(expression)
     if haskey(ENV, "QXRUN_TIMER")
@@ -135,6 +23,96 @@ macro perf(expression)
     end
 end
 
+#======================================================================#
+# QXContexts Logger
+#======================================================================#
+
+struct QXLogger <: Logging.AbstractLogger
+    stream::IO
+    min_level::Logging.LogLevel
+    message_limits::Dict{Any,Int}
+    show_info_source::Bool
+    log_path::Union{String, Nothing}
+    time_log_path::Union{String, Nothing}
+end
+
+"""
+    QXLogger(stream::IO=stdout, level=Logging.Info; show_info_source=false)
+
+Logger for QXContexts.
+"""
+function QXLogger(;log_dir=nothing, time_log=nothing, stream=nothing, level=Logging.Info, show_info_source=false, root_path="./")
+    log_path = nothing
+    if stream === nothing
+        log_dir == "" && ((log_dir, time_log) = get_log_path(root_path))
+        log_path = joinpath(log_dir, "proc_$(myid()).log")
+        stream = open(log_path, "w+")
+    end
+    QXLogger(stream, level, Dict{Any,Int}(), show_info_source, log_path, time_log)
+end
+
+shouldlog(logger::QXLogger, level, _module, group, id) = get(logger.message_limits, id, 1) > 0
+min_enabled_level(logger::QXLogger) = logger.min_level
+catch_exceptions(logger::QXLogger) = false
+
+function handle_message(logger::QXLogger, level, message, _module, group, id,
+                        filepath, line; maxlog = nothing, kwargs...)
+    if !isnothing(maxlog) && maxlog isa Int
+        remaining = get!(logger.message_limits, id, maxlog)
+        logger.message_limits[id] = remaining - 1
+        remaining > 0 || return nothing
+    end
+
+    level.level == 1 && return log_time(logger, message, kwargs...)
+
+    level_name = level_to_string(level)
+    msg_timestamp = stamp_builder()
+
+    formatted_message = "$(msg_timestamp) $(level_name) $message"
+    if logger.show_info_source || level != Logging.Info
+        formatted_message *= " -@-> $(filepath):$(line)"
+    end
+    formatted_message *= "\n"
+    write(logger.stream, formatted_message)
+    flush(logger.stream)
+    nothing
+end
+
+function log_time(logger::QXLogger, time_report, kwargs...)
+    args = collect_args(kwargs)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        open(logger.time_log_path, "a") do io
+            time_report *= join([string(k) * ":" * string(v) for (k, v) in pairs(args)], " ")
+            time_report *= "\n"
+            write(io, time_report)
+        end
+    end
+end
+
+function collect_args(kwargs)
+    args = kwargs[1][2]
+    n_gpus, n_workers, n_procs = functional() ? length(devices()) : 0, length(workers()), nprocs()
+    rbuf = MPI.Reduce((n_gpus, n_workers, n_procs), .+, 0, MPI.COMM_WORLD)
+    (n_gpus, n_workers, n_procs) = rbuf === nothing ? (0, 0, 0) : rbuf
+    args["gpus"] = n_gpus
+    args["workers"] = n_workers
+    args["processes"] = n_procs
+    args["comm_size"] = MPI.Comm_size(MPI.COMM_WORLD)
+    args
+end
+
+#======================================================================#
+# Convenience Functions
+#======================================================================#
+
+function level_to_string(level)
+    level == Logging.Error && return "ERROR"
+    level == Logging.Warn  && return "WARN"
+    level == Logging.Info  && return "INFO"
+    level == Logging.Debug && return "DEBUG"
+    level == PerfLogger && return "PERF"
+    return string(level)
+end
 
 """
     stamp_builder(rank::Int)
@@ -142,83 +120,32 @@ end
 Builds logger timestamp with rank and hostname capture.
 Rank defaults to 0 for single-process evaluations
 """
-function stamp_builder(rank::Int)
+function stamp_builder()
     io = IOBuffer()
     write(io, Dates.format(Dates.now(), "[yyyy/mm/dd-HH:MM:SS.sss]"))
-    write(io, "[rank="*string(rank)*"]")
     write(io, "[host="*gethostname()*"]")
     s = String(take!(io))
     close(io)
     return s
 end
 
-function handle_message(logger::Union{QXLogger, QXLoggerMPIShared}, level, message, _module, group, id,
-                                filepath, line; maxlog = nothing, kwargs...)
-    if !isnothing(maxlog) && maxlog isa Int
-        remaining = get!(logger.message_limits, id, maxlog)
-        logger.message_limits[id] = remaining - 1
-        remaining > 0 || return nothing
-    end
-
-    buf = IOBuffer()
-    level_name = level_to_string(level)
-    if MPI.Initialized() && MPI.Comm_rank(MPI.COMM_WORLD) > 1
-        rank = MPI.Comm_rank(logger.comm)
+function get_log_path(root_path="./")
+    if MPI.Initialized()
+        comm = MPI.COMM_WORLD
+        rank = MPI.Comm_rank(comm)
+        log_uid = rank == 0 ? uuid4() : nothing
+        log_uid = MPI.bcast(log_uid, 0, comm)
+        logs_dir = joinpath(root_path, "qxcontexts_logs")
+        !isdir(logs_dir) && mkdir(logs_dir)
+        log_dir = joinpath(logs_dir, string(log_uid))
+        !isdir(log_dir) && mkdir(log_dir)
+        rank_log_dir = joinpath(log_dir, "rank_$(rank)")
+        !isdir(rank_log_dir) && mkdir(rank_log_dir)
+        time_log = rank == 0 ? joinpath(logs_dir, "qxtime.log") : nothing
+        return rank_log_dir, time_log
     else
-        rank = 0
+        error("MPI must be initialized to use QXLogger with the default stream.")
     end
-
-    module_name = something(_module, "nothing")
-    msg_timestamp = stamp_builder(rank)
-
-    formatted_message = "$(msg_timestamp) $(level_name) $message"
-    if logger.show_info_source || level != Logging.Info
-        formatted_message *= " -@-> $(filepath):$(line)"
-    end
-    formatted_message *= "\n"
-
-    if typeof(logger.stream) <: IO
-        write(logger.stream,  formatted_message)
-    else
-        MPI.File.write_shared(logger.stream, formatted_message)
-    end
-
-    return nothing
 end
-
-function handle_message(logger::QXLoggerMPIPerRank, level, message, _module, group, id,
-    filepath, line; maxlog = nothing, kwargs...)
-
-    if !isnothing(maxlog) && maxlog isa Int
-        remaining = get!(logger.message_limits, id, maxlog)
-        logger.message_limits[id] = remaining - 1
-        remaining > 0 || return nothing
-    end
-
-    if !isdir(joinpath(logger.root_path, "QXContexts_io_" * string(logger.session_id)))
-        mkdir(joinpath(logger.root_path, "QXContexts_io_" * string(logger.session_id)))
-    end
-
-    buf = IOBuffer()
-    rank = MPI.Comm_rank(logger.comm)
-    level_name = level_to_string(level)
-
-    log_path = joinpath(logger.root_path, "QXContexts_io_" * string(global_logger().session_id), "rank_$(rank).log")
-    file = open(log_path, read=true,  write=true, create=true, append=true)
-
-    module_name = something(_module, "nothing")
-    msg_timestamp = stamp_builder(rank)
-
-    formatted_message = "$(msg_timestamp) $(level_name) $message"
-    if logger.show_info_source || level != Logging.Info
-        formatted_message *= " -@-> $(filepath):$(line)"
-    end
-    formatted_message *= "\n"
-
-    write(file, formatted_message)
-    close(file)
-    return nothing
-end
-
 
 end

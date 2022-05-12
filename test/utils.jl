@@ -1,7 +1,6 @@
 # Some useful data structures that are used in multiple tests
 
 using DataStructures
-
 using QXContexts
 
 # expected results for ghz exmaple files included in examples/ghz folder
@@ -36,5 +35,3 @@ sample_tensors = Dict{Symbol, AbstractArray}(
     :data_1 => rand(2,2,2),
     :data_2 => rand(4,2)
 )
-
-

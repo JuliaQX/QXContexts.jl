@@ -1,5 +1,7 @@
 using QXContexts
 
+include("../../bin/qxsimulate.jl")
+
 root = dirname(dirname(@__DIR__))
 
 prefixes = [joinpath(root, "examples/ghz/ghz_5"),
@@ -8,6 +10,11 @@ prefixes = [joinpath(root, "examples/ghz/ghz_5"),
 
 mktempdir() do path
     for prefix in prefixes
-        execute(prefix * ".qx", prefix * ".yml", prefix * ".jld2", joinpath(path, "out.jld2"))
+        output_fname = joinpath(path, "out.jld2")
+        args = ["-d", prefix * ".qx",
+                "-p", prefix * ".yml",
+                "-o", output_fname,
+                "-l", path]
+        main(args)
     end
 end

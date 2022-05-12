@@ -1,7 +1,7 @@
 name = "QXContexts"
 uuid = "04c26001-d4a1-49d2-b090-1d469cf06784"
 authors = ["QuantEx team"]
-version = "1.0.0"
+version = "2.0.0"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
@@ -9,6 +9,7 @@ ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 Lazy = "50d2b5c4-7a5e-59d5-8109-a42b560f39c0"
