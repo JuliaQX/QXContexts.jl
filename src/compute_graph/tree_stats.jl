@@ -1,4 +1,4 @@
-export cost, max_degree, depth, balance
+export costs, max_degree, depth, balance
 
 indices(c::ContractCommand) = c.left_idxs, c.right_idxs, c.output_idxs
 
@@ -16,17 +16,6 @@ function Base.show(io::IO, c::ComputeNode{T}) where T
               "max_degree: $(max_degree(c))")
 end
 
-
-"""
-    costs(ctx::QXContext)
-
-Compute the time and space costs of executing the given contraction context.
-
-Returns two arrays containing the number of operations and memory footprint
-during contraction respectively.
-"""
-costs(ctx::QXContext) = costs(ctx.cg, ctx.params)
-
 costs(cmd::AbstractCommand, params, dims) = ([], [], dims[1])
 costs(cmd::LoadCommand, params, dims)     = (0, prod(cmd.dims), cmd.dims)
 costs(cmd::OutputCommand, params, dims)   = (0, cmd.dim, [cmd.dim])
@@ -43,7 +32,6 @@ end
 
 function costs(cmd::ContractCommand, params, dims)
     a, b, c = indices(cmd)
-
     a_dims, b_dims = dims
     dims = Dict([a .=> a_dims; b .=> b_dims])
 

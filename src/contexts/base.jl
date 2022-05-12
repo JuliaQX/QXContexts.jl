@@ -181,6 +181,16 @@ end
 QXContext(cg::ComputeGraph) = QXContext{Array{ComplexF32}}(cg)
 
 """
+    costs(ctx::QXContext)
+
+Compute the time and space costs of executing the given contraction context.
+
+Returns two arrays containing the number of operations and memory footprint
+during contraction respectively.
+"""
+costs(ctx::QXContext) = costs(ctx.cg, ctx.params)
+
+"""
     gettensor(ctx::QXContext, sym)
 
 Function to retrieve tensors by key
