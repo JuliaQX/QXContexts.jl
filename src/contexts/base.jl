@@ -188,7 +188,7 @@ Compute the time and space costs of executing the given contraction context.
 Returns two arrays containing the number of operations and memory footprint
 during contraction respectively.
 """
-costs(ctx::QXContext) = costs(ctx.cg, ctx.params)
+ComputeGraphs.costs(ctx::QXContext) = ComputeGraphs.costs(ctx.cg, ctx.params)
 
 """
     gettensor(ctx::QXContext, sym)

@@ -19,6 +19,10 @@ ghz_results = Dict{Vector{Bool}, ComplexF32}(
     cg, _ = parse_dsl_files(dsl_file, data_file)
     conctx = QXContext(cg)
 
+    op_counts, memory_footprint = costs(conctx)
+    @test length(op_counts) == 37
+    @test length(memory_footprint) == 37
+
     # Test contraction
     bitstring = Bool[0, 0, 0, 0, 0]
     slice = CartesianIndex((1, 1))

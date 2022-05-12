@@ -93,4 +93,21 @@ include("utils.jl")
             @test dsl_1 == dsl_2
         end
     end
+
+    @testset "Test tree stats" begin
+        tree = build_tree(sample_cmds)
+        cg = ComputeGraph(tree, deepcopy(sample_tensors))
+
+        op_count, memory_footprint = costs(cg)
+        @test op_count == [0, 0, 0, 16, 20]
+        @test memory_footprint == [2, 10, 18, 6, 2]
+        @test max_degree(cg.root) == 2
+        @test length(cg.root) == 9
+        @test depth(cg.root) == 6
+        @test balance(cg.root) ≈ 2/3
+
+        op_count, memory_footprint = costs(cg, Dict(:v1 => 1))
+        @test op_count == [0, 0, 0, 0, 0, 4, 8]
+        @test memory_footprint == [2, 10, 4, 12, 6, 6, 2]
+    end
 end
